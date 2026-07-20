@@ -9,7 +9,9 @@
  */
 
 import * as E from '../model/edit';
+import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
+import { measureCapacity, measureFilled, timeSignatureAt } from '../model/song';
 import { isDrumTrack, isStringTrack, type DrumPiece, type Track } from '../model/types';
 import { defaultPieceForRow, rowForPiece, DRUM_ROW_COUNT } from '../theory/drums';
 import { useSongStore, type EditorState } from '../store/songStore';
@@ -18,6 +20,26 @@ import * as D from './durations';
 type Store = EditorState;
 
 const store = (): Store => useSongStore.getState();
+
+/**
+ * Explains a refused note entry.
+ *
+ * A full bar is the overwhelmingly common reason, and the message says what to
+ * do about it: the arithmetic is correct but invisible, so "eight eighths is
+ * already a whole 4/4 bar" is not obvious while staring at the screen.
+ */
+function explainRefusedEntry(track: Track, measureIndex: number): void {
+  const song = store().song;
+  const measure = track.measures[measureIndex];
+  if (!song || !measure) return;
+
+  if (F.gte(measureFilled(measure), measureCapacity(song, track, measureIndex))) {
+    const sig = timeSignatureAt(song, measureIndex);
+    store().setNotice(
+      `Bar ${measureIndex + 1} is full (${sig.num}/${sig.den}). Shorten a note, or press Enter to add a bar.`,
+    );
+  }
+}
 
 /** The track the cursor is on, if any. */
 export function currentTrack(): Track | undefined {
@@ -58,6 +80,11 @@ export function setFretAtCursor(fret: number): boolean {
   const track = currentTrack();
   if (!cursor || !track || !isStringTrack(track)) return false;
 
+  if (fret > track.fretCount) {
+    store().setNotice(`Fret ${fret} is past the end of a ${track.fretCount}-fret neck.`);
+    return false;
+  }
+
   const stringIndex = stringForLine(track, cursor.line);
   let applied = false;
   store().edit(`Fret ${fret}`, (draft) => {
@@ -71,6 +98,8 @@ export function setFretAtCursor(fret: number): boolean {
       entryDuration,
     );
   });
+  if (applied) store().setNotice(null);
+  else explainRefusedEntry(track, cursor.measureIndex);
   return applied;
 }
 
@@ -94,6 +123,8 @@ export function toggleDrumAtCursor(piece?: DrumPiece): boolean {
       entryDuration,
     );
   });
+  if (applied) store().setNotice(null);
+  else explainRefusedEntry(track, cursor.measureIndex);
   return applied;
 }
 
@@ -222,6 +253,11 @@ export function applyDurationToCursorBeat(): boolean {
       entryDuration,
     );
   });
+  if (!applied) {
+    store().setNotice(
+      `That would not fit in bar ${cursor.measureIndex + 1}. Shorten another note first.`,
+    );
+  }
   return applied;
 }
 

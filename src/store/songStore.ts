@@ -45,6 +45,15 @@ export interface EditorState {
   future: HistoryEntry[];
   autosaveStatus: AutosaveStatus;
   autosaveError: unknown;
+  /**
+   * Transient explanation of why an edit did not happen.
+   *
+   * Model operations refuse rather than half-apply, which is right, but a
+   * refusal with no feedback is indistinguishable from a broken editor. The
+   * `id` increments on every notice so repeating the same message restarts the
+   * dismiss timer instead of appearing frozen.
+   */
+  notice: { message: string; id: number } | null;
 
   /* Document lifecycle */
   openSong: (song: Song) => void;
@@ -64,6 +73,8 @@ export interface EditorState {
   setCursor: (cursor: Cursor | null) => void;
   moveCursor: (delta: { measure?: number; beat?: number; line?: number }) => void;
   setEntryDuration: (duration: Fraction) => void;
+
+  setNotice: (message: string | null) => void;
 
   /* Persistence */
   saveNow: () => Promise<void>;
@@ -86,6 +97,13 @@ export const useSongStore = create<EditorState>((set, get) => ({
   future: [],
   autosaveStatus: 'idle',
   autosaveError: undefined,
+  notice: null,
+
+  setNotice(message) {
+    set((state) => ({
+      notice: message === null ? null : { message, id: (state.notice?.id ?? 0) + 1 },
+    }));
+  },
 
   /* ---------------------------------------------------------------------- */
 
@@ -251,5 +269,6 @@ export function resetStoreForTesting(): void {
     future: [],
     autosaveStatus: 'idle',
     autosaveError: undefined,
+    notice: null,
   });
 }

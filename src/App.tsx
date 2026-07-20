@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { EditorToolbar } from './editor/EditorToolbar';
+import { Notice } from './editor/Notice';
 import { ShortcutSheet } from './editor/ShortcutSheet';
 import { useEditorKeyboard } from './editor/useEditorKeyboard';
 import { demoSong } from './model/fixtures';
@@ -89,6 +90,8 @@ function App() {
           <kbd>]</kbd> change the note value, <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.
         </p>
       </main>
+
+      <Notice />
 
       {showShortcuts && <ShortcutSheet onClose={() => setShowShortcuts(false)} />}
     </div>
