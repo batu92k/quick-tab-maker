@@ -1,0 +1,82 @@
+.qtm-fretboard-wrap {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.qtm-fretboard {
+  display: block;
+  font-family: var(--qtm-font-ui);
+}
+
+.qtm-fb-neck {
+  fill: var(--qtm-surface);
+  stroke: var(--qtm-border);
+}
+
+.qtm-fb-nut {
+  fill: var(--qtm-barline);
+}
+
+.qtm-fb-capo {
+  fill: var(--qtm-accent);
+}
+
+.qtm-fb-fret {
+  stroke: var(--qtm-staff-line);
+  stroke-width: 1.5;
+}
+
+.qtm-fb-marker {
+  fill: var(--qtm-staff-line);
+  opacity: 0.55;
+}
+
+.qtm-fb-string {
+  stroke: var(--qtm-text-muted);
+}
+
+.qtm-fb-string--active {
+  stroke: var(--qtm-accent);
+}
+
+.qtm-fb-fretnum,
+.qtm-fb-tuning {
+  fill: var(--qtm-text-muted);
+  font-size: 10px;
+  user-select: none;
+}
+
+.qtm-fb-tuning {
+  font-weight: 600;
+  fill: var(--qtm-text);
+}
+
+.qtm-fb-tuning-backdrop {
+  fill: var(--qtm-bg);
+}
+
+/* Transparent, but still the pointer target for its whole cell. */
+.qtm-fb-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.qtm-fb-preview circle {
+  fill: var(--qtm-accent);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.qtm-fb-preview text {
+  fill: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Behind a capo the string cannot be fretted, so the preview is inert. */
+.qtm-fb-preview--muted circle {
+  fill: var(--qtm-text-muted);
+  opacity: 0.35;
+}

@@ -1,0 +1,32 @@
+.qtm-instrument {
+  margin-top: 18px;
+  padding: 14px 16px 16px;
+  background: var(--qtm-bg);
+  border: 1px solid var(--qtm-border);
+  border-radius: 10px;
+}
+
+.qtm-instrument-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.qtm-instrument-header h2 {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.qtm-instrument-hint {
+  font-size: 0.76rem;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-instrument-note {
+  margin: 10px 0 0;
+  font-size: 0.76rem;
+  color: var(--qtm-text-muted);
+}

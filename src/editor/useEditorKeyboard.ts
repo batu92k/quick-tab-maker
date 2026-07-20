@@ -10,6 +10,8 @@
 import { useEffect, useRef } from 'react';
 import { useSongStore } from '../store/songStore';
 import * as C from './commands';
+import { drumPieceForKey } from './input/drumKeys';
+import { drumInput } from './input/events';
 import { findBinding } from './keymap';
 
 /**
@@ -92,6 +94,20 @@ export function useEditorKeyboard(enabled = true): void {
 
       /* Everything else invalidates a partly-typed fret. */
       pendingDigits.current = null;
+
+      /* Finger drumming. These letters overlap the technique shortcuts, but
+         those are string-only, so the two sets are never live together. */
+      if (!ctrl && !event.shiftKey) {
+        const track = C.currentTrack();
+        if (track?.kind === 'drums') {
+          const piece = drumPieceForKey(event.key);
+          if (piece) {
+            event.preventDefault();
+            C.applyNoteInput(drumInput(piece, { source: 'keyboard' }));
+            return;
+          }
+        }
+      }
 
       const binding = findBinding(event);
       if (!binding) return;

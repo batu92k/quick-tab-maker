@@ -14,6 +14,8 @@ import type { Fraction } from '../model/fraction';
 import { measureCapacity, measureFilled, timeSignatureAt } from '../model/song';
 import { isDrumTrack, isStringTrack, type DrumPiece, type Track } from '../model/types';
 import { defaultPieceForRow, rowForPiece, DRUM_ROW_COUNT } from '../theory/drums';
+import { midiToFretPositions, midiToPitch, specOf } from '../theory/midi';
+import type { NoteInputEvent } from './input/events';
 import { useSongStore, type EditorState } from '../store/songStore';
 import * as D from './durations';
 
@@ -126,6 +128,50 @@ export function toggleDrumAtCursor(piece?: DrumPiece): boolean {
   if (applied) store().setNotice(null);
   else explainRefusedEntry(track, cursor.measureIndex);
   return applied;
+}
+
+/**
+ * Applies an input event from any device at the cursor.
+ *
+ * This is the seam MIDI plugs into: a `pitch` event carries no string, so a
+ * playable position is chosen here. Preference goes to a position on or near
+ * the cursor's current string, falling back to the lowest fret available, which
+ * keeps a played phrase in one area of the neck rather than scattering it.
+ */
+export function applyNoteInput(event: NoteInputEvent): boolean {
+  const track = currentTrack();
+  const cursor = store().cursor;
+  if (!track || !cursor) return false;
+
+  switch (event.kind) {
+    case 'drum':
+      return isDrumTrack(track) ? toggleDrumAtCursor(event.piece) : false;
+
+    case 'fret': {
+      if (!isStringTrack(track)) return false;
+      // The event names a document string, but the cursor addresses a visual
+      // line, so move the cursor to match before writing.
+      store().setCursor({ ...cursor, line: lineForString(track, event.string) });
+      return setFretAtCursor(event.fret);
+    }
+
+    case 'pitch': {
+      if (!isStringTrack(track)) return false;
+      const positions = midiToFretPositions(specOf(track), event.midi);
+      if (positions.length === 0) {
+        store().setNotice(
+          `${midiToPitch(event.midi)} cannot be played on this instrument's range.`,
+        );
+        return false;
+      }
+      const preferredString = stringForLine(track, cursor.line);
+      const chosen =
+        positions.find((p) => p.string === preferredString) ??
+        positions[0]!;
+      store().setCursor({ ...cursor, line: lineForString(track, chosen.string) });
+      return setFretAtCursor(chosen.fret);
+    }
+  }
 }
 
 /** Deletes the note under the cursor. */

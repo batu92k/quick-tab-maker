@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { InstrumentPanel } from './components/InstrumentPanel';
 import { EditorToolbar } from './editor/EditorToolbar';
 import { Notice } from './editor/Notice';
 import { ShortcutSheet } from './editor/ShortcutSheet';
@@ -85,6 +86,7 @@ function App() {
 
       <main className="qtm-main">
         {song && <ScoreView song={song} cursor={cursor} onHit={handleHit} />}
+        <InstrumentPanel />
         <p className="qtm-hint">
           Click a position, then type a fret number. Arrow keys move, <kbd>[</kbd> and{' '}
           <kbd>]</kbd> change the note value, <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.

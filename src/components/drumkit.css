@@ -1,0 +1,82 @@
+.qtm-drumkit-wrap {
+  max-width: 560px;
+}
+
+.qtm-drumkit {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--qtm-font-ui);
+}
+
+.qtm-pad {
+  cursor: pointer;
+}
+
+.qtm-pad:focus-visible {
+  outline: none;
+}
+
+.qtm-pad:focus-visible .qtm-pad-body {
+  stroke: var(--qtm-accent);
+  stroke-width: 3;
+}
+
+.qtm-pad-body {
+  fill: var(--qtm-surface);
+  stroke: var(--qtm-border);
+  stroke-width: 1.5;
+  transition: fill 90ms ease-out;
+}
+
+.qtm-pad--cymbal .qtm-pad-body {
+  fill: color-mix(in srgb, var(--qtm-text-muted) 18%, var(--qtm-surface));
+}
+
+.qtm-pad-bell,
+.qtm-pad-rim {
+  fill: none;
+  stroke: var(--qtm-border);
+  stroke-width: 1;
+}
+
+.qtm-pad-label {
+  fill: var(--qtm-text-muted);
+  font-size: 9px;
+  user-select: none;
+  pointer-events: none;
+}
+
+.qtm-pad-key {
+  fill: var(--qtm-text);
+  font-size: 10px;
+  font-weight: 700;
+  user-select: none;
+  pointer-events: none;
+}
+
+.qtm-pad--hover .qtm-pad-body {
+  stroke: var(--qtm-accent);
+}
+
+/* The piece is present at the cursor's beat. */
+.qtm-pad--active .qtm-pad-body {
+  fill: color-mix(in srgb, var(--qtm-accent) 26%, var(--qtm-surface));
+  stroke: var(--qtm-accent);
+}
+
+/* Momentary confirmation that a hit registered. */
+.qtm-pad--flash .qtm-pad-body {
+  fill: var(--qtm-accent);
+}
+
+.qtm-pad--flash .qtm-pad-label,
+.qtm-pad--flash .qtm-pad-key {
+  fill: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qtm-pad-body {
+    transition: none;
+  }
+}
