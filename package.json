@@ -1,0 +1,39 @@
+{
+  "name": "quick-tab-maker",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "idb": "^8.0.3",
+    "immer": "^11.1.15",
+    "jspdf": "^4.2.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "svg2pdf.js": "^2.7.0",
+    "tonal": "^6.4.3",
+    "tone": "^15.1.22",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "jsdom": "^29.1.1",
+    "oxlint": "^1.71.0",
+    "prettier": "^3.9.5",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vitest": "^4.1.10"
+  }
+}
