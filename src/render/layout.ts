@@ -12,7 +12,7 @@
 
 import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
-import { measureCapacity, timeSignatureAt } from '../model/song';
+import { measureCapacity, measureFilled, timeSignatureAt } from '../model/song';
 import {
   isStringTrack,
   type AnyNote,
@@ -173,26 +173,42 @@ function beatWidth(duration: Fraction, o: LayoutOptions): number {
   return o.beatBaseWidth + o.beatDurationWidth * F.toNumber(duration);
 }
 
+/** Whether another note could still be added to this bar. */
+export function hasRoomToAppend(song: Song, track: Track, measureIndex: number): boolean {
+  const measure = track.measures[measureIndex];
+  if (!measure) return false;
+  return F.lt(measureFilled(measure), measureCapacity(song, track, measureIndex));
+}
+
 /**
  * Natural width of a measure, before it is stretched to fill a system.
  *
  * An empty measure still needs its minimum: a bar of rests is a real thing a
  * user clicks into, and collapsing it to nothing makes it unselectable.
+ *
+ * Space for one more beat is reserved only when the bar can actually take one.
+ * A full 4/4 bar of eighths has no room for a ninth note, and reserving the
+ * slot anyway draws a trailing gap that reads as an extra beat position the
+ * user can fill — which they cannot.
  */
-export function naturalMeasureWidth(track: Track, measureIndex: number, o: LayoutOptions): number {
+export function naturalMeasureWidth(
+  song: Song,
+  track: Track,
+  measureIndex: number,
+  o: LayoutOptions,
+): number {
   const measure = track.measures[measureIndex];
   if (!measure) return o.minMeasureWidth;
 
   const content = measure.beats.reduce((sum, beat) => sum + beatWidth(beat.duration, o), 0);
-  // Leave room for one more beat so the append slot is reachable.
-  const withAppend = content + o.beatBaseWidth;
-  return Math.max(o.minMeasureWidth, withAppend + o.measurePadding * 2);
+  const append = hasRoomToAppend(song, track, measureIndex) ? o.beatBaseWidth : 0;
+  return Math.max(o.minMeasureWidth, content + append + o.measurePadding * 2);
 }
 
 /** The widest natural width across tracks — all tracks share a bar grid. */
 function sharedMeasureWidth(song: Song, measureIndex: number, o: LayoutOptions): number {
   return song.tracks.reduce(
-    (max, track) => Math.max(max, naturalMeasureWidth(track, measureIndex, o)),
+    (max, track) => Math.max(max, naturalMeasureWidth(song, track, measureIndex, o)),
     o.minMeasureWidth,
   );
 }
@@ -243,13 +259,17 @@ function layoutMeasure(
   scale: number,
 ): LaidOutMeasure {
   const measure = track.measures[measureIndex];
+  // Padding scales with the bar so the gap before the first beat and after the
+  // last stay equal. Leaving it unscaled dumps the whole justification surplus
+  // on the right-hand side, which reads as a trailing empty beat.
+  const pad = o.measurePadding * scale;
   const empty: LaidOutMeasure = {
     measure: measure ?? { id: `missing_${measureIndex}`, beats: [] },
     measureIndex,
     x,
     width,
     beats: [],
-    appendX: x + o.measurePadding + o.beatBaseWidth / 2,
+    appendX: x + pad + (o.beatBaseWidth * scale) / 2,
   };
   if (!measure) return empty;
 
@@ -258,7 +278,7 @@ function layoutMeasure(
   // Scaling every beat equally preserves their relative spacing, so a bar of
   // eighths still reads as evenly spaced and a dotted note still looks longer
   // than the note after it.
-  let cursor = x + o.measurePadding;
+  let cursor = x + pad;
   const beats: LaidOutBeat[] = measure.beats.map((beat, beatIndex) => {
     const width = beatWidth(beat.duration, o) * scale;
     const centre = cursor + width / 2;

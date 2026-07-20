@@ -9,6 +9,7 @@ import { DRUM_ROW_COUNT, rowForPiece } from '../theory/drums';
 import {
   DEFAULT_LAYOUT_OPTIONS,
   cursorPosition,
+  hasRoomToAppend,
   hitTest,
   layoutSong,
   lineForNote,
@@ -56,8 +57,54 @@ describe('lineForNote', () => {
 describe('measure widths', () => {
   it('never collapses an empty measure below the minimum', () => {
     const song = guitarOnly();
-    const width = naturalMeasureWidth(song.tracks[0]!, 0, DEFAULT_LAYOUT_OPTIONS);
+    const width = naturalMeasureWidth(song, song.tracks[0]!, 0, DEFAULT_LAYOUT_OPTIONS);
     expect(width).toBeGreaterThanOrEqual(DEFAULT_LAYOUT_OPTIONS.minMeasureWidth);
+  });
+
+  it('reserves no append slot in a bar that is already full', () => {
+    // Regression: every bar reserved room for one more beat, so a full 4/4 bar
+    // of eight eighth notes drew a ninth empty slot the user could never fill.
+    const song = produce(guitarOnly(), (d) => {
+      const id = d.tracks[0]!.id;
+      for (let i = 0; i < 8; i++) E.setNote(d, id, 0, i, 0, i, F.EIGHTH); // bar 0: full
+      for (let i = 0; i < 7; i++) E.setNote(d, id, 1, i, 0, i, F.EIGHTH); // bar 1: room left
+    });
+    const track = song.tracks[0]!;
+
+    expect(hasRoomToAppend(song, track, 0)).toBe(false);
+    expect(hasRoomToAppend(song, track, 1)).toBe(true);
+
+    // The full bar is exactly its content plus padding — no trailing slot.
+    const full = naturalMeasureWidth(song, track, 0, DEFAULT_LAYOUT_OPTIONS);
+    const contentWidth = 8 * (DEFAULT_LAYOUT_OPTIONS.beatBaseWidth + DEFAULT_LAYOUT_OPTIONS.beatDurationWidth / 8);
+    expect(full).toBeCloseTo(contentWidth + DEFAULT_LAYOUT_OPTIONS.measurePadding * 2);
+  });
+
+  it('pads a full bar symmetrically, with no trailing beat-sized gap', () => {
+    const song = produce(guitarOnly(), (d) => {
+      const id = d.tracks[0]!.id;
+      for (let i = 0; i < 8; i++) E.setNote(d, id, 0, i, 0, i, F.EIGHTH);
+    });
+    const measure = layoutSong(song, { width: 2400 }).systems[0]!.staves[0]!.measures[0]!;
+    const first = measure.beats[0]!;
+    const last = measure.beats[measure.beats.length - 1]!;
+
+    const leading = first.left - measure.x;
+    const trailing = measure.x + measure.width - (last.left + last.width);
+    // Justification surplus must be split evenly, not dumped after the last
+    // note where it reads as an extra empty beat.
+    expect(trailing).toBeCloseTo(leading, 1);
+  });
+
+  it('still reserves an append slot in a bar with room', () => {
+    const song = produce(guitarOnly(), (d) => {
+      E.setNote(d, d.tracks[0]!.id, 0, 0, 0, 3, F.QUARTER);
+    });
+    const track = song.tracks[0]!;
+    const withRoom = naturalMeasureWidth(song, track, 0, DEFAULT_LAYOUT_OPTIONS);
+    const beatOnly =
+      DEFAULT_LAYOUT_OPTIONS.beatBaseWidth + DEFAULT_LAYOUT_OPTIONS.beatDurationWidth / 4;
+    expect(withRoom).toBeGreaterThan(beatOnly + DEFAULT_LAYOUT_OPTIONS.measurePadding * 2);
   });
 
   it('gives a denser bar more room than a sparse one', () => {
@@ -67,8 +114,8 @@ describe('measure widths', () => {
       for (let i = 0; i < 8; i++) E.setNote(d, id, 1, i, 0, i, F.EIGHTH); // eight eighths
     });
     const track = song.tracks[0]!;
-    const sparse = naturalMeasureWidth(track, 0, DEFAULT_LAYOUT_OPTIONS);
-    const dense = naturalMeasureWidth(track, 1, DEFAULT_LAYOUT_OPTIONS);
+    const sparse = naturalMeasureWidth(song, track, 0, DEFAULT_LAYOUT_OPTIONS);
+    const dense = naturalMeasureWidth(song, track, 1, DEFAULT_LAYOUT_OPTIONS);
     expect(dense).toBeGreaterThan(sparse);
   });
 });

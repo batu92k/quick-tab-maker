@@ -169,8 +169,16 @@ export function measureCapacity(song: Song, track: Track, measureIndex: number):
   return F.measureDuration(sig.num, sig.den);
 }
 
-/** Total musical time used by a measure's beats. May be less than capacity. */
-export function measureFilled<N extends AnyNote>(measure: Measure<N>): Fraction {
+/**
+ * Total musical time used by a measure's beats. May be less than capacity.
+ *
+ * Typed structurally rather than as `Measure<N>` so it accepts a measure from
+ * either kind of track: how full a bar is has nothing to do with what sort of
+ * notes are in it, and the generic version cannot take the union.
+ */
+export function measureFilled(measure: {
+  readonly beats: readonly { readonly start: Fraction; readonly duration: Fraction }[];
+}): Fraction {
   return measure.beats.reduce((acc, beat) => F.max(acc, F.add(beat.start, beat.duration)), F.ZERO);
 }
 
