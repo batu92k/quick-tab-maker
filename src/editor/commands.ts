@@ -178,22 +178,51 @@ export function toggleTechniqueAtCursor(technique: Parameters<typeof E.toggleTec
 /* -------------------------------------------------------------------------- */
 
 /**
- * Sets the entry duration, and retimes the beat under the cursor if it has
- * notes — so picking a duration with a note selected edits that note, while
- * picking one on an empty slot arms the next note. Both readings are natural,
- * and which one applies is obvious from what is on screen.
+ * Arms the note value used for the next note entered.
+ *
+ * This never touches existing music. An earlier version also retimed the beat
+ * under the cursor, on the theory that "picking a duration with a note selected
+ * edits that note" — but the cursor is always sitting on something, so picking
+ * a value silently rewrote whatever note happened to be underneath. That made
+ * bar lengths change unpredictably, and on a full bar it shrank a note to
+ * conjure up space that should not have existed. Changing an existing note is
+ * now an explicit action: `applyDurationToCursorBeat`.
  */
 export function setEntryDuration(duration: Fraction): void {
-  const { cursor } = store();
   store().setEntryDuration(duration);
+}
 
+/** True when the cursor sits on a beat whose duration could be changed. */
+export function canApplyDurationToCursorBeat(): boolean {
+  const { cursor } = store();
   const track = currentTrack();
-  const beat = track?.measures[cursor?.measureIndex ?? -1]?.beats[cursor?.beatIndex ?? -1];
-  if (!cursor || !beat || beat.notes.length === 0) return;
+  if (!cursor || !track) return false;
+  const beat = track.measures[cursor.measureIndex]?.beats[cursor.beatIndex];
+  return Boolean(beat && beat.notes.length > 0);
+}
 
-  store().edit('Set duration', (draft) => {
-    E.setBeatDuration(draft, cursor.trackId, cursor.measureIndex, cursor.beatIndex, duration);
+/**
+ * Retimes the beat under the cursor to the armed note value.
+ *
+ * Refused by the model when the bar has no room to grow, so lengthening the
+ * last note of a full bar leaves the music untouched rather than silently
+ * dropping something to make it fit.
+ */
+export function applyDurationToCursorBeat(): boolean {
+  const { cursor, entryDuration } = store();
+  if (!cursor) return false;
+
+  let applied = false;
+  store().edit('Change note value', (draft) => {
+    applied = E.setBeatDuration(
+      draft,
+      cursor.trackId,
+      cursor.measureIndex,
+      cursor.beatIndex,
+      entryDuration,
+    );
   });
+  return applied;
 }
 
 export const shortenDuration = (): void => setEntryDuration(D.shorter(store().entryDuration));

@@ -206,12 +206,91 @@ describe('duration commands', () => {
     expect(guitar().measures[0]!.beats).toEqual([]); // nothing written
   });
 
-  it('retimes the beat under the cursor when it has notes', () => {
+  it('never rewrites the note under the cursor', () => {
+    // Regression: choosing a note value used to retime whatever beat the cursor
+    // happened to be on. Because the cursor always sits on something, picking a
+    // value silently rewrote existing music and made bar lengths jump around.
     open();
     store().setCursor({ trackId: guitar().id, measureIndex: 0, beatIndex: 0, line: 0 });
     C.setFretAtCursor(3); // written as a quarter
+
+    C.setEntryDuration(F.SIXTEENTH);
+    expect(guitar().measures[0]!.beats[0]!.duration).toEqual(F.QUARTER);
+    expect(store().entryDuration).toEqual(F.SIXTEENTH);
+  });
+
+  it('does not conjure space in a full bar by shrinking an existing note', () => {
+    // Regression: on a full bar, choosing a shorter value shrank a note and so
+    // allowed exactly one more note to be squeezed in.
+    open();
+    const id = guitar().id;
+    store().setEntryDuration(F.EIGHTH);
+    for (let i = 0; i < 8; i++) {
+      store().setCursor({ trackId: id, measureIndex: 0, beatIndex: i, line: 0 });
+      expect(C.setFretAtCursor(i)).toBe(true);
+    }
+
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.setEntryDuration(F.SIXTEENTH);
+
+    // The bar is still exactly full, and nothing more fits.
+    expect(guitar().measures[0]!.beats).toHaveLength(8);
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 8, line: 0 });
+    expect(C.setFretAtCursor(5)).toBe(false);
+  });
+
+  it('changes a note value only when explicitly applied', () => {
+    open();
+    store().setCursor({ trackId: guitar().id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.setFretAtCursor(3);
+
     C.setEntryDuration(F.EIGHTH);
+    expect(C.canApplyDurationToCursorBeat()).toBe(true);
+    expect(C.applyDurationToCursorBeat()).toBe(true);
     expect(guitar().measures[0]!.beats[0]!.duration).toEqual(F.EIGHTH);
+  });
+
+  it('will not apply a note value on an empty slot', () => {
+    open();
+    store().setCursor({ trackId: guitar().id, measureIndex: 0, beatIndex: 0, line: 0 });
+    expect(C.canApplyDurationToCursorBeat()).toBe(false);
+    expect(C.applyDurationToCursorBeat()).toBe(false);
+    expect(store().canUndo()).toBe(false);
+  });
+
+  it('refuses to lengthen a note past the end of a full bar', () => {
+    open();
+    const id = guitar().id;
+    store().setEntryDuration(F.QUARTER);
+    for (let i = 0; i < 4; i++) {
+      store().setCursor({ trackId: id, measureIndex: 0, beatIndex: i, line: 0 });
+      C.setFretAtCursor(i);
+    }
+
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.setEntryDuration(F.HALF);
+    expect(C.applyDurationToCursorBeat()).toBe(false);
+    expect(guitar().measures[0]!.beats[0]!.duration).toEqual(F.QUARTER);
+  });
+
+  it('fills a bar that has room with as many short notes as fit', () => {
+    // The complement of the full-bar case: half a bar of eighths leaves room
+    // for eight sixteenths, and every one of them must be enterable.
+    open();
+    const id = guitar().id;
+    store().setEntryDuration(F.EIGHTH);
+    for (let i = 0; i < 4; i++) {
+      store().setCursor({ trackId: id, measureIndex: 0, beatIndex: i, line: 0 });
+      C.setFretAtCursor(i);
+    }
+
+    store().setEntryDuration(F.SIXTEENTH);
+    for (let i = 0; i < 8; i++) {
+      store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 4 + i, line: 0 });
+      expect(C.setFretAtCursor(1)).toBe(true);
+    }
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 12, line: 0 });
+    expect(C.setFretAtCursor(1)).toBe(false); // now genuinely full
   });
 
   it('steps the note value shorter and longer', () => {

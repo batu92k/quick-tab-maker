@@ -42,6 +42,12 @@ export function EditorToolbar() {
   const isFretted = track ? isStringTrack(track) : false;
   const parts = decompose(entryDuration);
 
+  // Derived from subscribed state rather than read from the store imperatively,
+  // so the button's enabled state tracks the cursor as it moves.
+  const beatUnderCursor =
+    track && cursor ? track.measures[cursor.measureIndex]?.beats[cursor.beatIndex] : undefined;
+  const canApply = Boolean(beatUnderCursor && beatUnderCursor.notes.length > 0);
+
   return (
     <div className="qtm-toolbar" role="toolbar" aria-label="Note entry">
       <div className="qtm-toolbar-group" role="group" aria-label="Note value">
@@ -89,6 +95,18 @@ export function EditorToolbar() {
           onClick={C.toggleTriplet}
         >
           3
+        </button>
+
+        {/* Choosing a note value only arms it for the next note. Rewriting an
+            existing note is deliberately a separate, explicit action. */}
+        <button
+          type="button"
+          className="qtm-tool qtm-tool--wide"
+          title="Apply this note value to the note under the cursor (A)"
+          disabled={!canApply}
+          onClick={() => C.applyDurationToCursorBeat()}
+        >
+          Apply to note
         </button>
       </div>
 

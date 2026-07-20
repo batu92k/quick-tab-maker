@@ -49,6 +49,12 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   { key: ']', label: 'Longer note value', group: 'Rhythm', run: C.lengthenDuration },
   { key: '.', label: 'Cycle dotted', group: 'Rhythm', run: C.cycleDots },
   { key: 't', label: 'Toggle triplet', group: 'Rhythm', run: C.toggleTriplet },
+  {
+    key: 'a',
+    label: 'Apply note value to the note under the cursor',
+    group: 'Rhythm',
+    run: () => void C.applyDurationToCursorBeat(),
+  },
 
   /* Techniques */
   { key: 'h', label: 'Hammer-on', group: 'Techniques', stringOnly: true, run: () => C.toggleTechniqueAtCursor('hammer') },
