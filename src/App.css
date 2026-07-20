@@ -68,10 +68,25 @@ body {
   outline-offset: 2px;
 }
 
+.qtm-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .qtm-main {
   flex: 1;
   padding: 20px;
   overflow-x: auto;
+}
+
+.qtm-hint {
+  margin: 14px 2px 0;
+  font-size: 0.78rem;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-hint kbd {
+  margin: 0 1px;
 }
 
 .qtm-score-container {

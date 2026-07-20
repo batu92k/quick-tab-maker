@@ -5,22 +5,28 @@
  * than assumed. A `ResizeObserver` is used instead of a window resize listener
  * because the editor will gain collapsible side panels, which change the score
  * width without the window changing size at all.
+ *
+ * This component owns the layout, so it also owns both directions of the
+ * pixel/document mapping: it converts a pointer event into a document position
+ * via `hitTest`, and the cursor's document position back into pixels via
+ * `cursorPosition`. Keeping both here means callers deal only in document terms.
  */
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { Song } from '../model/types';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { Cursor, Song } from '../model/types';
 import { Score } from './Score';
-import { layoutSong, type LayoutOptions } from './layout';
+import { cursorPosition, hitTest, layoutSong, type HitResult, type LayoutOptions } from './layout';
 import './score.css';
 
 export interface ScoreViewProps {
   song: Song;
   options?: Partial<LayoutOptions>;
-  cursor?: { x: number; y: number } | undefined;
-  onPointerDown?: ((event: React.PointerEvent<SVGSVGElement>) => void) | undefined;
+  cursor?: Cursor | null;
+  /** Called with the document position under a click. */
+  onHit?: ((hit: HitResult) => void) | undefined;
 }
 
-export function ScoreView({ song, options, cursor, onPointerDown }: ScoreViewProps) {
+export function ScoreView({ song, options, cursor, onHit }: ScoreViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -43,9 +49,39 @@ export function ScoreView({ song, options, cursor, onPointerDown }: ScoreViewPro
     [song, options, width],
   );
 
+  const caret = useMemo(() => {
+    if (!cursor) return undefined;
+    return cursorPosition(
+      layout,
+      cursor.trackId,
+      cursor.measureIndex,
+      cursor.beatIndex,
+      cursor.line,
+    );
+  }, [layout, cursor]);
+
+  const handlePointerDown = useCallback(
+    (event: React.PointerEvent<SVGSVGElement>) => {
+      if (!onHit) return;
+      // The SVG is rendered at its intrinsic size, so viewBox units and CSS
+      // pixels are 1:1 and subtracting the bounding rect is enough. If a zoom
+      // control is added later this is the single place that has to change.
+      const rect = event.currentTarget.getBoundingClientRect();
+      const hit = hitTest(layout, event.clientX - rect.left, event.clientY - rect.top);
+      if (hit) onHit(hit);
+    },
+    [layout, onHit],
+  );
+
   return (
     <div className="qtm-score-container" ref={containerRef}>
-      {width > 0 && <Score layout={layout} cursor={cursor} onPointerDown={onPointerDown} />}
+      {width > 0 && (
+        <Score
+          layout={layout}
+          cursor={caret}
+          onPointerDown={onHit ? handlePointerDown : undefined}
+        />
+      )}
     </div>
   );
 }
