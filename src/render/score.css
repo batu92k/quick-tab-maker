@@ -1,0 +1,169 @@
+/*
+ * Score styling.
+ *
+ * Every colour and font is a custom property so the theme can change without
+ * re-rendering the SVG, and so the PDF exporter can override the whole palette
+ * by setting these on a wrapper element. Phase 7 expands the token set; the
+ * names here are the contract the renderer depends on.
+ */
+
+:root {
+  --qtm-font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --qtm-font-tab: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+
+  --qtm-bg: #ffffff;
+  --qtm-surface: #f6f7f9;
+  --qtm-text: #14181f;
+  --qtm-text-muted: #6b7480;
+  --qtm-staff-line: #c3c9d2;
+  --qtm-barline: #8b939f;
+  --qtm-note: #14181f;
+  --qtm-accent: #2f6df6;
+  --qtm-cursor: rgb(47 109 246 / 22%);
+  --qtm-border: #e2e5ea;
+}
+
+:root[data-theme='dark'] {
+  --qtm-bg: #14171c;
+  --qtm-surface: #1c2027;
+  --qtm-text: #e7eaef;
+  --qtm-text-muted: #939cab;
+  --qtm-staff-line: #3a414c;
+  --qtm-barline: #5a636f;
+  --qtm-note: #e7eaef;
+  --qtm-accent: #6f9bff;
+  --qtm-cursor: rgb(111 155 255 / 26%);
+  --qtm-border: #2a303a;
+}
+
+/*
+ * Follow the OS when the user has not chosen explicitly. The `data-theme`
+ * attribute above always wins, in both directions, so an explicit light choice
+ * survives a dark OS setting.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --qtm-bg: #14171c;
+    --qtm-surface: #1c2027;
+    --qtm-text: #e7eaef;
+    --qtm-text-muted: #939cab;
+    --qtm-staff-line: #3a414c;
+    --qtm-barline: #5a636f;
+    --qtm-note: #e7eaef;
+    --qtm-accent: #6f9bff;
+    --qtm-cursor: rgb(111 155 255 / 26%);
+    --qtm-border: #2a303a;
+  }
+}
+
+.qtm-score {
+  display: block;
+  font-family: var(--qtm-font-tab);
+  background: var(--qtm-bg);
+  touch-action: none; /* the score handles its own pointer input */
+}
+
+.qtm-staff-line {
+  stroke: var(--qtm-staff-line);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.qtm-barline {
+  stroke: var(--qtm-barline);
+  stroke-width: 1.2;
+  shape-rendering: crispEdges;
+}
+
+.qtm-line-label,
+.qtm-bar-number,
+.qtm-track-name {
+  fill: var(--qtm-text-muted);
+  font-family: var(--qtm-font-ui);
+  user-select: none;
+}
+
+.qtm-track-name {
+  font-weight: 600;
+  fill: var(--qtm-text);
+}
+
+.qtm-note text {
+  fill: var(--qtm-note);
+  font-family: var(--qtm-font-tab);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* Breaks the staff line behind a fret number so the digit stays legible. */
+.qtm-note-backdrop {
+  fill: var(--qtm-bg);
+}
+
+.qtm-note--muted text {
+  fill: var(--qtm-text-muted);
+}
+
+.qtm-technique {
+  fill: var(--qtm-accent);
+  font-family: var(--qtm-font-ui);
+  user-select: none;
+}
+
+.qtm-stem line {
+  stroke: var(--qtm-text-muted);
+  stroke-width: 1;
+}
+
+.qtm-stem circle {
+  stroke: var(--qtm-text-muted);
+  stroke-width: 1;
+}
+
+.qtm-rest {
+  fill: var(--qtm-text-muted);
+  opacity: 0.55;
+}
+
+.qtm-drum-note circle,
+.qtm-drum-note polygon {
+  fill: var(--qtm-note);
+}
+
+.qtm-drum-note line {
+  stroke: var(--qtm-note);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.qtm-drum-ring {
+  stroke: var(--qtm-note);
+  stroke-width: 1;
+  fill: none;
+}
+
+.qtm-drum-note--ghost {
+  opacity: 0.45;
+}
+
+.qtm-drum-note--accent circle,
+.qtm-drum-note--accent polygon {
+  fill: var(--qtm-accent);
+}
+
+.qtm-drum-note--accent line {
+  stroke: var(--qtm-accent);
+}
+
+.qtm-accent {
+  fill: var(--qtm-accent);
+  font-family: var(--qtm-font-ui);
+  font-weight: 700;
+  user-select: none;
+}
+
+.qtm-cursor {
+  fill: var(--qtm-cursor);
+  stroke: var(--qtm-accent);
+  stroke-width: 1;
+}

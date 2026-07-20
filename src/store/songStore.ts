@@ -15,6 +15,7 @@ import { cloneSong } from '../model/serialize';
 import { createSong } from '../model/song';
 import { newSongId } from '../model/ids';
 import type { Cursor, Id, Song } from '../model/types';
+import { DRUM_ROW_COUNT } from '../theory/drums';
 import {
   createAutosaver,
   saveSong,
@@ -219,12 +220,6 @@ export const useSongStore = create<EditorState>((set, get) => ({
     set({ autosaveStatus: 'saved' });
   },
 }));
-
-/**
- * Rows shown on a drum staff. Declared here because the cursor needs to clamp
- * to it; the renderer owns which pieces occupy which row.
- */
-export const DRUM_ROW_COUNT = 9;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
