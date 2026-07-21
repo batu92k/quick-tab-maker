@@ -12,7 +12,7 @@ import * as E from '../model/edit';
 import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
 import { measureCapacity, measureFilled, timeSignatureAt } from '../model/song';
-import { isDrumTrack, isStringTrack, type DrumPiece, type Track } from '../model/types';
+import { isDrumTrack, isStringTrack, type Cursor, type DrumPiece, type Track } from '../model/types';
 import { defaultPieceForRow, rowForPiece, DRUM_ROW_COUNT } from '../theory/drums';
 import { midiToFretPositions, midiToPitch, specOf } from '../theory/midi';
 import type { NoteInputEvent } from './input/events';
@@ -64,6 +64,47 @@ export function stringForLine(track: Track, line: number): number {
 
 export function lineForString(track: Track, stringIndex: number): number {
   return isStringTrack(track) ? track.tuning.length - 1 - stringIndex : stringIndex;
+}
+
+/** A note of the cursor's beat, located on the neck. */
+export interface SoundingPosition {
+  readonly string: number;
+  readonly fret: number;
+  /** True for the note the cursor itself is on, as opposed to the rest of a chord. */
+  readonly onCursorString: boolean;
+}
+
+/**
+ * The notes sounding at the cursor's beat, as fretboard positions.
+ *
+ * Pure and store-free so the fretboard can mirror the score without the score
+ * and the neck disagreeing about which string is which — that inversion is the
+ * one thing in this area that is easy to get backwards.
+ *
+ * Empty for a drum track: the kit shows its own beat through `activePieces`.
+ */
+export function soundingPositions(track: Track, cursor: Cursor): SoundingPosition[] {
+  if (!isStringTrack(track)) return [];
+  const beat = track.measures[cursor.measureIndex]?.beats[cursor.beatIndex];
+  if (!beat) return [];
+
+  const cursorString = stringForLine(track, cursor.line);
+  return beat.notes
+    // Callers resolve these to pitches, and the resolver throws on a position
+    // the instrument does not have. A note stranded past the end of the neck by
+    // a retuning should quietly not be drawn, not take the panel down with it.
+    .filter(
+      (note) =>
+        note.string >= 0 &&
+        note.string < track.tuning.length &&
+        note.fret >= 0 &&
+        note.fret <= track.fretCount,
+    )
+    .map((note) => ({
+      string: note.string,
+      fret: note.fret,
+      onCursorString: note.string === cursorString,
+    }));
 }
 
 /* -------------------------------------------------------------------------- */

@@ -55,6 +55,33 @@
   fill: var(--qtm-bg);
 }
 
+/* Notes sounding at the cursor's beat.
+   Outlined rather than filled so they stay distinguishable from the hover
+   preview, which is the thing the pointer is about to write. */
+.qtm-fb-mark circle {
+  fill: var(--qtm-bg);
+  stroke: var(--qtm-accent);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.qtm-fb-mark text {
+  fill: var(--qtm-text);
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The note the cursor is on, as opposed to the rest of the chord. */
+.qtm-fb-mark--cursor circle {
+  fill: var(--qtm-accent);
+}
+
+.qtm-fb-mark--cursor text {
+  fill: #fff;
+}
+
 /* Transparent, but still the pointer target for its whole cell. */
 .qtm-fb-hit {
   fill: transparent;

@@ -13,6 +13,7 @@ import { drumInput, fretInput } from '../editor/input/events';
 import { isStringTrack, type DrumPiece } from '../model/types';
 import { useSongStore } from '../store/songStore';
 import { rowForPiece } from '../theory/drums';
+import { midiToPitch, specOf, stringFretToMidi } from '../theory/midi';
 import { DrumKit } from './DrumKit';
 import { Fretboard } from './Fretboard';
 import './instrument-panel.css';
@@ -45,6 +46,20 @@ export function InstrumentPanel() {
   if (!track || !cursor) return null;
 
   if (isStringTrack(track)) {
+    // The neck mirrors the beat the cursor is on, so selecting a chord in the
+    // score shows its shape under the hand — the point being to practise from
+    // the illustration rather than to read fret numbers off the staff.
+    const sounding = C.soundingPositions(track, cursor);
+    const marks = sounding.map((p) => ({
+      string: p.string,
+      fret: p.fret,
+      emphasis: p.onCursorString,
+    }));
+    const spec = specOf(track);
+    const names = sounding.map((p) =>
+      midiToPitch(stringFretToMidi(spec, p.string, p.fret)).replace(/\d+$/, ''),
+    );
+
     return (
       <section className="qtm-instrument" aria-label="Fretboard input">
         <header className="qtm-instrument-header">
@@ -58,7 +73,9 @@ export function InstrumentPanel() {
           track={track}
           onPick={handlePick}
           activeString={C.stringForLine(track, cursor.line)}
+          marks={marks}
         />
+        {names.length > 0 && <p className="qtm-instrument-note">On this beat: {names.join(' ')}</p>}
       </section>
     );
   }

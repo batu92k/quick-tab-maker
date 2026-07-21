@@ -21,6 +21,14 @@ import './fretboard.css';
 const SINGLE_MARKERS = new Set([3, 5, 7, 9, 15, 17, 19, 21]);
 const DOUBLE_MARKERS = new Set([12, 24]);
 
+/** A position to draw on the neck because it is sounding in the score. */
+export interface FretboardMark {
+  readonly string: number;
+  readonly fret: number;
+  /** Drawn filled rather than outlined — the note the cursor is on. */
+  readonly emphasis?: boolean;
+}
+
 export interface FretboardProps {
   track: StringTrack;
   /** Called with a document string index and fret when a position is clicked. */
@@ -29,6 +37,8 @@ export interface FretboardProps {
   activeString?: number | undefined;
   /** Highest fret to draw. Defaults to the track's own fret count. */
   maxFret?: number | undefined;
+  /** Positions from the score to show on the neck, for practising a shape. */
+  marks?: readonly FretboardMark[] | undefined;
 }
 
 const NUT_WIDTH = 8;
@@ -37,7 +47,7 @@ const STRING_GAP = 22;
 const FRET_WIDTH = 44;
 const TOP = 26;
 
-export function Fretboard({ track, onPick, activeString, maxFret }: FretboardProps) {
+export function Fretboard({ track, onPick, activeString, maxFret, marks = [] }: FretboardProps) {
   const [hover, setHover] = useState<{ string: number; fret: number } | null>(null);
 
   const fretCount = Math.min(maxFret ?? track.fretCount, track.fretCount);
@@ -172,6 +182,37 @@ export function Fretboard({ track, onPick, activeString, maxFret }: FretboardPro
             </text>
           </g>
         ))}
+
+        {/* Notes sounding at the cursor's beat.
+            A mark can name a fret past the drawn range (a shorter `maxFret`, or
+            a note left behind by a retuning), so anything off the board is
+            dropped rather than drawn at the edge where it would read as a
+            position the player could actually reach — and `noteName` throws on
+            an out-of-range position rather than inventing a pitch. */}
+        {marks
+          .filter(
+            (mark) =>
+              mark.fret >= 0 &&
+              mark.fret <= fretCount &&
+              mark.string >= 0 &&
+              mark.string < stringCount,
+          )
+          .map((mark) => (
+            <g
+              key={`k${mark.string}-${mark.fret}`}
+              className={`qtm-fb-mark${mark.emphasis ? ' qtm-fb-mark--cursor' : ''}`}
+            >
+              <circle cx={cellX(mark.fret)} cy={stringY(mark.string)} r={9} />
+              <text
+                x={cellX(mark.fret)}
+                y={stringY(mark.string)}
+                textAnchor="middle"
+                dominantBaseline="central"
+              >
+                {noteName(mark.string, mark.fret)}
+              </text>
+            </g>
+          ))}
 
         {/* Hit targets. Drawn last so they sit above the decoration. */}
         {track.tuning.map((_, stringIndex) =>
