@@ -10,6 +10,7 @@
  * guitarist types "12" to mean the twelfth fret, and nothing else may compete.
  */
 
+import { usePlaybackStore } from '../store/playbackStore';
 import * as C from './commands';
 
 export interface KeyBinding {
@@ -18,7 +19,14 @@ export interface KeyBinding {
   readonly ctrl?: boolean;
   readonly shift?: boolean;
   readonly label: string;
-  readonly group: 'Movement' | 'Notes' | 'Rhythm' | 'Techniques' | 'Structure' | 'History';
+  readonly group:
+    | 'Movement'
+    | 'Notes'
+    | 'Rhythm'
+    | 'Techniques'
+    | 'Structure'
+    | 'Playback'
+    | 'History';
   readonly run: () => void;
   /** Bindings that only make sense on a fretted instrument. */
   readonly stringOnly?: boolean;
@@ -70,6 +78,17 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   { key: 'enter', label: 'Add bar at end', group: 'Structure', run: C.appendMeasure },
   { key: 'enter', ctrl: true, label: 'Insert bar here', group: 'Structure', run: C.insertMeasureAtCursor },
   { key: 'backspace', ctrl: true, label: 'Delete bar', group: 'Structure', run: C.deleteMeasureAtCursor },
+
+  /* Playback. Bare Space already places a drum hit, which is worth more here
+     than matching a media player: note entry is what the user is doing most. */
+  {
+    key: ' ',
+    ctrl: true,
+    label: 'Play / pause',
+    group: 'Playback',
+    run: () => void usePlaybackStore.getState().toggle(),
+  },
+  { key: 'escape', label: 'Stop', group: 'Playback', run: () => usePlaybackStore.getState().stop() },
 ];
 
 /**
@@ -129,4 +148,5 @@ const KEY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   delete: 'Delete',
   home: 'Home',
   end: 'End',
+  escape: 'Esc',
 };

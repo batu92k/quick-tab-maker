@@ -13,20 +13,31 @@
  */
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import * as F from '../model/fraction';
 import type { Cursor, Song } from '../model/types';
 import { Score } from './Score';
-import { cursorPosition, hitTest, layoutSong, type HitResult, type LayoutOptions } from './layout';
+import {
+  cursorPosition,
+  hitTest,
+  layoutSong,
+  measureDurations,
+  playheadPosition,
+  type HitResult,
+  type LayoutOptions,
+} from './layout';
 import './score.css';
 
 export interface ScoreViewProps {
   song: Song;
   options?: Partial<LayoutOptions>;
   cursor?: Cursor | null;
+  /** Musical position of the playhead, or undefined when not playing. */
+  playhead?: { bar: number; offset: number } | undefined;
   /** Called with the document position under a click. */
   onHit?: ((hit: HitResult) => void) | undefined;
 }
 
-export function ScoreView({ song, options, cursor, onHit }: ScoreViewProps) {
+export function ScoreView({ song, options, cursor, playhead, onHit }: ScoreViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -60,6 +71,16 @@ export function ScoreView({ song, options, cursor, onHit }: ScoreViewProps) {
     );
   }, [layout, cursor]);
 
+  // Recomputed every frame during playback, so both halves stay cheap: the bar
+  // durations are memoised against the song, and only the interpolation runs.
+  const barDurations = useMemo(() => measureDurations(song), [song]);
+  const playheadGeometry = useMemo(() => {
+    if (!playhead) return undefined;
+    const bar = barDurations[playhead.bar];
+    if (!bar) return undefined;
+    return playheadPosition(layout, playhead.bar, playhead.offset, F.toNumber(bar));
+  }, [layout, playhead, barDurations]);
+
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {
       if (!onHit) return;
@@ -79,6 +100,7 @@ export function ScoreView({ song, options, cursor, onHit }: ScoreViewProps) {
         <Score
           layout={layout}
           cursor={caret}
+          playhead={playheadGeometry}
           onPointerDown={onHit ? handlePointerDown : undefined}
         />
       )}

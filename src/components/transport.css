@@ -1,0 +1,76 @@
+.qtm-transport {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border: 1px solid var(--qtm-border);
+  border-radius: 10px;
+  background: var(--qtm-surface);
+  font-size: 0.8rem;
+}
+
+.qtm-transport-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Fixed width so the bar number changing from 9 to 10 does not shove every
+   control to the right on a loop point. */
+.qtm-transport-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 110px;
+  font-variant-numeric: tabular-nums;
+}
+
+.qtm-transport-time,
+.qtm-transport-hint {
+  color: var(--qtm-text-muted);
+}
+
+.qtm-transport-counting {
+  color: var(--qtm-accent);
+  font-weight: 600;
+}
+
+.qtm-transport-error {
+  color: #c0392b;
+}
+
+.qtm-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-field input,
+.qtm-field select {
+  font: inherit;
+  color: var(--qtm-text);
+  background: var(--qtm-bg);
+  border: 1px solid var(--qtm-border);
+  border-radius: 5px;
+  padding: 3px 5px;
+}
+
+.qtm-field input[type='number'] {
+  width: 62px;
+}
+
+.qtm-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.qtm-button--primary {
+  background: var(--qtm-accent);
+  border-color: var(--qtm-accent);
+  color: #fff;
+  min-width: 62px;
+}

@@ -357,6 +357,23 @@ export const toggleTriplet = (): void => setEntryDuration(D.toggleTriplet(store(
 /* Measures and tracks                                                        */
 /* -------------------------------------------------------------------------- */
 
+/** Sets the song's base tempo. Refused by the model outside 1-400 BPM. */
+export function setTempo(bpm: number): boolean {
+  let applied = false;
+  store().edit('Tempo', (draft) => {
+    applied = E.setTempo(draft, Math.round(bpm));
+  });
+  if (!applied) store().setNotice(`${Math.round(bpm)} BPM is outside the usable range.`);
+  return applied;
+}
+
+/** Adjusts one track's mixer settings. */
+export function setMixer(trackId: string, changes: Partial<Track['mixer']>): void {
+  store().edit('Mixer', (draft) => {
+    E.setMixer(draft, trackId, changes);
+  });
+}
+
 export function insertMeasureAtCursor(): void {
   const { cursor } = store();
   store().edit('Insert bar', (draft) => E.insertMeasure(draft, cursor?.measureIndex ?? 0));

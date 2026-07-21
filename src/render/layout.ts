@@ -521,6 +521,76 @@ export function cursorPosition(
   return undefined;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Playhead                                                                   */
+/* -------------------------------------------------------------------------- */
+
+export interface PlayheadGeometry {
+  readonly x: number;
+  readonly y: number;
+  readonly height: number;
+}
+
+/**
+ * Horizontal position of a musical offset inside a laid-out bar.
+ *
+ * Interpolated across the beat columns rather than linearly across the bar,
+ * because bar width is only *partly* proportional to duration — that is a
+ * deliberate layout choice, and a playhead that ignores it slides visibly off
+ * the notes it is supposed to be sounding. Inside a beat the motion is linear,
+ * which is correct: nothing happens between two attacks.
+ */
+function playheadX(measure: LaidOutMeasure, offset: number, barDuration: number): number {
+  let elapsed = 0;
+  for (const beat of measure.beats) {
+    const duration = F.toNumber(beat.beat.duration);
+    if (offset < elapsed + duration) {
+      return beat.left + ((offset - elapsed) / duration) * beat.width;
+    }
+    elapsed += duration;
+  }
+
+  // Past the last beat: the rest of the bar is empty, so spread what remains of
+  // the musical time across what remains of the width.
+  const tail = Math.max(barDuration - elapsed, 1e-6);
+  const from = measure.beats.length > 0 ? lastEdge(measure) : measure.x;
+  const width = Math.max(measure.x + measure.width - from, 0);
+  return from + Math.min((offset - elapsed) / tail, 1) * width;
+}
+
+function lastEdge(measure: LaidOutMeasure): number {
+  const last = measure.beats[measure.beats.length - 1];
+  return last ? last.left + last.width : measure.x;
+}
+
+/**
+ * Where to draw the playhead, spanning every staff of its system.
+ *
+ * `barDuration` comes from `measureDurations` rather than being recomputed here
+ * so the playhead and the bar grid agree about how long a bar is even when a
+ * time signature changes mid-song.
+ */
+export function playheadPosition(
+  layout: Layout,
+  bar: number,
+  offset: number,
+  barDuration: number,
+): PlayheadGeometry | undefined {
+  const o = layout.options;
+  for (const system of layout.systems) {
+    if (bar < system.firstMeasure || bar >= system.lastMeasure) continue;
+    const staff = system.staves[0];
+    const measure = staff?.measures.find((m) => m.measureIndex === bar);
+    if (!measure) return undefined;
+    return {
+      x: playheadX(measure, offset, barDuration),
+      y: system.y - o.lineSpacing / 2,
+      height: system.height + o.lineSpacing,
+    };
+  }
+  return undefined;
+}
+
 /** Musical time each bar occupies, exposed for the playhead and rulers. */
 export function measureDurations(song: Song): Fraction[] {
   const barCount = song.tracks.reduce((max, t) => Math.max(max, t.measures.length), 0);

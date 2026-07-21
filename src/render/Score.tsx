@@ -23,6 +23,7 @@ import type {
   LaidOutSystem,
   Layout,
   LayoutOptions,
+  PlayheadGeometry,
 } from './layout';
 
 /* -------------------------------------------------------------------------- */
@@ -327,11 +328,13 @@ export interface ScoreProps {
   layout: Layout;
   /** Drawn as a caret; supplied by the editor in phase 3. */
   cursor?: { x: number; y: number } | undefined;
+  /** Vertical line following playback. */
+  playhead?: PlayheadGeometry | undefined;
   onPointerDown?: ((event: React.PointerEvent<SVGSVGElement>) => void) | undefined;
   className?: string | undefined;
 }
 
-export function Score({ layout, cursor, onPointerDown, className }: ScoreProps) {
+export function Score({ layout, cursor, playhead, onPointerDown, className }: ScoreProps) {
   const { options } = layout;
 
   return (
@@ -351,6 +354,17 @@ export function Score({ layout, cursor, onPointerDown, className }: ScoreProps) 
           ))}
         </g>
       ))}
+
+      {/* Under the caret: while playing, the editing position still matters. */}
+      {playhead && (
+        <line
+          className="qtm-playhead"
+          x1={playhead.x}
+          y1={playhead.y}
+          x2={playhead.x}
+          y2={playhead.y + playhead.height}
+        />
+      )}
 
       {cursor && (
         <rect

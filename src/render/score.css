@@ -167,3 +167,11 @@
   stroke: var(--qtm-accent);
   stroke-width: 1;
 }
+
+/* Warm rather than accent-coloured: the playhead and the editing caret are on
+   screen at the same time and must not be mistaken for one another. */
+.qtm-playhead {
+  stroke: #e8663c;
+  stroke-width: 1.6;
+  pointer-events: none;
+}

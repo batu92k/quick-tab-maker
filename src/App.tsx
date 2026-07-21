@@ -8,6 +8,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { InstrumentPanel } from './components/InstrumentPanel';
+import { Mixer } from './components/Mixer';
+import { Transport } from './components/Transport';
 import { EditorToolbar } from './editor/EditorToolbar';
 import { Notice } from './editor/Notice';
 import { ShortcutSheet } from './editor/ShortcutSheet';
@@ -15,6 +17,7 @@ import { useEditorKeyboard } from './editor/useEditorKeyboard';
 import { demoSong } from './model/fixtures';
 import { ScoreView } from './render/ScoreView';
 import type { HitResult } from './render/layout';
+import { usePlaybackStore } from './store/playbackStore';
 import { useSongStore } from './store/songStore';
 import './App.css';
 
@@ -26,6 +29,7 @@ function App() {
   const setCursor = useSongStore((s) => s.setCursor);
   const openSong = useSongStore((s) => s.openSong);
   const autosaveStatus = useSongStore((s) => s.autosaveStatus);
+  const playhead = usePlaybackStore((s) => s.position);
 
   const [theme, setTheme] = useState<Theme>('light');
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -82,10 +86,19 @@ function App() {
         </div>
       </header>
 
+      {song && (
+        <div className="qtm-controls">
+          <Transport />
+          <Mixer />
+        </div>
+      )}
+
       {song && <EditorToolbar />}
 
       <main className="qtm-main">
-        {song && <ScoreView song={song} cursor={cursor} onHit={handleHit} />}
+        {song && (
+          <ScoreView song={song} cursor={cursor} playhead={playhead} onHit={handleHit} />
+        )}
         <InstrumentPanel />
         <p className="qtm-hint">
           Click a position, then type a fret number. Arrow keys move, <kbd>[</kbd> and{' '}

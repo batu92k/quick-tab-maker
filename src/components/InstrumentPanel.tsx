@@ -11,9 +11,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import * as C from '../editor/commands';
 import { drumInput, fretInput } from '../editor/input/events';
 import { isStringTrack, type DrumPiece } from '../model/types';
+import { usePlaybackStore } from '../store/playbackStore';
 import { useSongStore } from '../store/songStore';
 import { rowForPiece } from '../theory/drums';
-import { midiToPitch, specOf, stringFretToMidi } from '../theory/midi';
+import { DRUM_PIECE_TO_GM, midiToPitch, specOf, stringFretToMidi } from '../theory/midi';
 import { DrumKit } from './DrumKit';
 import { Fretboard } from './Fretboard';
 import './instrument-panel.css';
@@ -32,16 +33,33 @@ export function InstrumentPanel() {
 
   const track = song?.tracks.find((t) => t.id === cursor?.trackId);
 
-  const handleDrumHit = useCallback((piece: DrumPiece) => {
-    C.applyNoteInput(drumInput(piece, { source: 'mouse' }));
-    setFlash(piece);
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setFlash(null), FLASH_MS);
-  }, []);
+  const trackId = track?.id;
 
-  const handlePick = useCallback((stringIndex: number, fret: number) => {
-    C.applyNoteInput(fretInput(stringIndex, fret, { source: 'mouse' }));
-  }, []);
+  // Auditioning happens whether or not the note was written. Hearing what you
+  // pointed at is the point of the illustration, and a bar being full is not a
+  // reason to also make the instrument go silent.
+  const handleDrumHit = useCallback(
+    (piece: DrumPiece) => {
+      C.applyNoteInput(drumInput(piece, { source: 'mouse' }));
+      if (trackId) usePlaybackStore.getState().audition(DRUM_PIECE_TO_GM[piece], 'percussive', trackId);
+      setFlash(piece);
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      flashTimer.current = setTimeout(() => setFlash(null), FLASH_MS);
+    },
+    [trackId],
+  );
+
+  const handlePick = useCallback(
+    (stringIndex: number, fret: number) => {
+      C.applyNoteInput(fretInput(stringIndex, fret, { source: 'mouse' }));
+      if (track && isStringTrack(track)) {
+        usePlaybackStore
+          .getState()
+          .audition(stringFretToMidi(specOf(track), stringIndex, fret), 'pitched', track.id);
+      }
+    },
+    [track],
+  );
 
   if (!track || !cursor) return null;
 

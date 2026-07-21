@@ -14,6 +14,7 @@ import {
   layoutSong,
   lineForNote,
   naturalMeasureWidth,
+  playheadPosition,
 } from './layout';
 
 const guitarOnly = (measureCount = 4): Song =>
@@ -355,5 +356,67 @@ describe('cursorPosition', () => {
   it('returns nothing for an unknown track', () => {
     const layout = layoutSong(demoSong(), { width: 2400 });
     expect(cursorPosition(layout, 'nope', 0, 0, 0)).toBeUndefined();
+  });
+});
+
+describe('playheadPosition', () => {
+  /** Four quarter notes in bar 0, so every beat column is addressable. */
+  const withBeats = (): Song =>
+    produce(guitarOnly(), (d) => {
+      for (let i = 0; i < 4; i++) E.setNote(d, d.tracks[0]!.id, 0, i, 0, i, F.QUARTER);
+    });
+
+  it('sits on a note when the offset is that note’s start', () => {
+    const song = withBeats();
+    const layout = layoutSong(song, { width: 2400 });
+    const beats = layout.systems[0]!.staves[0]!.measures[0]!.beats;
+
+    for (const [i, beat] of beats.entries()) {
+      const head = playheadPosition(layout, 0, i * 0.25, 1)!;
+      expect(head.x).toBeCloseTo(beat.left);
+    }
+  });
+
+  it('moves left to right within a beat', () => {
+    const layout = layoutSong(withBeats(), { width: 2400 });
+    const early = playheadPosition(layout, 0, 0.02, 1)!;
+    const late = playheadPosition(layout, 0, 0.2, 1)!;
+    expect(late.x).toBeGreaterThan(early.x);
+  });
+
+  it('crosses beat columns rather than sliding evenly across the bar', () => {
+    // Bar width is only partly proportional to duration, so a playhead that
+    // interpolated across the whole bar would drift off the notes it is
+    // sounding. Half way through the bar must land on the third quarter.
+    const layout = layoutSong(withBeats(), { width: 2400 });
+    const third = layout.systems[0]!.staves[0]!.measures[0]!.beats[2]!;
+    expect(playheadPosition(layout, 0, 0.5, 1)!.x).toBeCloseTo(third.left);
+  });
+
+  it('spans every staff of its system', () => {
+    const layout = layoutSong(demoSong(), { width: 2400 });
+    const system = layout.systems[0]!;
+    const head = playheadPosition(layout, 0, 0, 1)!;
+    expect(head.y).toBeLessThanOrEqual(system.y);
+    expect(head.y + head.height).toBeGreaterThanOrEqual(system.y + system.height);
+  });
+
+  it('crosses into an empty tail of a partly filled bar', () => {
+    // One quarter written in a 4/4 bar: three quarters of the bar is empty and
+    // the playhead still has to travel across it.
+    const song = produce(guitarOnly(), (d) => {
+      E.setNote(d, d.tracks[0]!.id, 0, 0, 0, 3, F.QUARTER);
+    });
+    const layout = layoutSong(song, { width: 2400 });
+    const measure = layout.systems[0]!.staves[0]!.measures[0]!;
+
+    const head = playheadPosition(layout, 0, 0.75, 1)!;
+    expect(head.x).toBeGreaterThan(measure.beats[0]!.left);
+    expect(head.x).toBeLessThanOrEqual(measure.x + measure.width);
+  });
+
+  it('has no position for a bar outside the score', () => {
+    const layout = layoutSong(guitarOnly(2), { width: 2400 });
+    expect(playheadPosition(layout, 9, 0, 1)).toBeUndefined();
   });
 });
