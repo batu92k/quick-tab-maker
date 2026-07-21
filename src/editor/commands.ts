@@ -12,7 +12,15 @@ import * as E from '../model/edit';
 import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
 import { measureCapacity, measureFilled, timeSignatureAt } from '../model/song';
-import { isDrumTrack, isStringTrack, type Cursor, type DrumPiece, type Track } from '../model/types';
+import {
+  isDrumTrack,
+  isStringTrack,
+  type AnyNote,
+  type Cursor,
+  type DrumPiece,
+  type Note,
+  type Track,
+} from '../model/types';
 import { defaultPieceForRow, rowForPiece, DRUM_ROW_COUNT } from '../theory/drums';
 import { midiToFretPositions, midiToPitch, specOf } from '../theory/midi';
 import type { NoteInputEvent } from './input/events';
@@ -66,7 +74,7 @@ export function lineForString(track: Track, stringIndex: number): number {
   return isStringTrack(track) ? track.tuning.length - 1 - stringIndex : stringIndex;
 }
 
-/** A note of the cursor's beat, located on the neck. */
+/** A note of a beat, located on the neck. */
 export interface SoundingPosition {
   readonly string: number;
   readonly fret: number;
@@ -75,21 +83,25 @@ export interface SoundingPosition {
 }
 
 /**
- * The notes sounding at the cursor's beat, as fretboard positions.
+ * The notes of a beat, as fretboard positions.
  *
  * Pure and store-free so the fretboard can mirror the score without the score
  * and the neck disagreeing about which string is which — that inversion is the
  * one thing in this area that is easy to get backwards.
  *
+ * `cursorString` is null when the beat is being played rather than edited:
+ * there is no "note under the cursor" to pick out of a chord that is sounding.
+ *
  * Empty for a drum track: the kit shows its own beat through `activePieces`.
  */
-export function soundingPositions(track: Track, cursor: Cursor): SoundingPosition[] {
-  if (!isStringTrack(track)) return [];
-  const beat = track.measures[cursor.measureIndex]?.beats[cursor.beatIndex];
-  if (!beat) return [];
+export function positionsInBeat(
+  track: Track,
+  beat: { readonly notes: readonly AnyNote[] } | undefined,
+  cursorString: number | null,
+): SoundingPosition[] {
+  if (!isStringTrack(track) || !beat) return [];
 
-  const cursorString = stringForLine(track, cursor.line);
-  return beat.notes
+  return (beat.notes as readonly Note[])
     // Callers resolve these to pitches, and the resolver throws on a position
     // the instrument does not have. A note stranded past the end of the neck by
     // a retuning should quietly not be drawn, not take the panel down with it.
@@ -103,8 +115,17 @@ export function soundingPositions(track: Track, cursor: Cursor): SoundingPositio
     .map((note) => ({
       string: note.string,
       fret: note.fret,
-      onCursorString: note.string === cursorString,
+      onCursorString: cursorString !== null && note.string === cursorString,
     }));
+}
+
+/** The notes at the editing cursor's beat. */
+export function soundingPositions(track: Track, cursor: Cursor): SoundingPosition[] {
+  return positionsInBeat(
+    track,
+    track.measures[cursor.measureIndex]?.beats[cursor.beatIndex],
+    stringForLine(track, cursor.line),
+  );
 }
 
 /* -------------------------------------------------------------------------- */

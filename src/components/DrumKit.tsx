@@ -7,7 +7,7 @@
  * keyboard letter so the illustration teaches the finger-drumming layout.
  */
 
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import type { DrumPiece } from '../model/types';
 import { keyForDrumPiece } from '../editor/input/drumKeys';
 import './drumkit.css';
@@ -53,7 +53,12 @@ export interface DrumKitProps {
   flashPiece?: DrumPiece | null;
 }
 
-export function DrumKit({ onHit, activePieces = [], flashPiece }: DrumKitProps) {
+/** Memoised for the same reason as the fretboard — see the note there. */
+export const DrumKit = memo(function DrumKit({
+  onHit,
+  activePieces = [],
+  flashPiece,
+}: DrumKitProps) {
   const [hover, setHover] = useState<DrumPiece | null>(null);
   const active = new Set(activePieces);
 
@@ -117,4 +122,4 @@ export function DrumKit({ onHit, activePieces = [], flashPiece }: DrumKitProps) 
       </svg>
     </div>
   );
-}
+});

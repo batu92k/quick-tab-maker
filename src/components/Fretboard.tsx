@@ -12,7 +12,7 @@
  * needs to be an equally easy click target.
  */
 
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { StringTrack } from '../model/types';
 import { midiToPitch, specOf, stringFretToMidi } from '../theory/midi';
 import './fretboard.css';
@@ -47,7 +47,19 @@ const STRING_GAP = 22;
 const FRET_WIDTH = 44;
 const TOP = 26;
 
-export function Fretboard({ track, onPick, activeString, maxFret, marks = [] }: FretboardProps) {
+/**
+ * Memoised because the playhead re-renders its parent on every animation frame
+ * while the neck itself only changes on each note. A guitar neck is a few
+ * hundred SVG nodes; rebuilding it sixty times a second to move one dot is
+ * exactly the waste `marks` is memoised upstream to avoid.
+ */
+export const Fretboard = memo(function Fretboard({
+  track,
+  onPick,
+  activeString,
+  maxFret,
+  marks = [],
+}: FretboardProps) {
   const [hover, setHover] = useState<{ string: number; fret: number } | null>(null);
 
   const fretCount = Math.min(maxFret ?? track.fretCount, track.fretCount);
@@ -250,4 +262,4 @@ export function Fretboard({ track, onPick, activeString, maxFret, marks = [] }: 
       </svg>
     </div>
   );
-}
+});

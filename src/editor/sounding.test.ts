@@ -8,7 +8,8 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDrumTrack, createSong, createStringTrack } from '../model/song';
+import * as F from '../model/fraction';
+import { beatAtOffset, createDrumTrack, createSong, createStringTrack } from '../model/song';
 import { isStringTrack, type Cursor, type StringTrack, type Track } from '../model/types';
 import { resetStoreForTesting, useSongStore } from '../store/songStore';
 import * as C from './commands';
@@ -60,6 +61,52 @@ beforeEach(() => {
   resetStoreForTesting();
 });
 
+describe('beatAtOffset', () => {
+  /** Four quarters in bar 0, so every boundary is at a round number. */
+  function quarters() {
+    const track = open([createStringTrack('guitar', { measureCount: 1 })]);
+    store().setCursor({ trackId: track.id, measureIndex: 0, beatIndex: 0, line: 0 });
+    store().setEntryDuration(F.QUARTER);
+    for (let i = 0; i < 4; i++) {
+      store().setCursor({ trackId: track.id, measureIndex: 0, beatIndex: i, line: 0 });
+      C.applyNoteInput(fretInput(0, i));
+    }
+    return guitar().measures[0]!;
+  }
+
+  it('finds the beat a clock reading falls inside', () => {
+    const measure = quarters();
+    expect(beatAtOffset(measure, 0.3)).toBe(measure.beats[1]);
+    expect(beatAtOffset(measure, 0.6)).toBe(measure.beats[2]);
+  });
+
+  it('lands on the beat that starts at a boundary, not the one that ends there', () => {
+    const measure = quarters();
+    expect(beatAtOffset(measure, 0.25)).toBe(measure.beats[1]);
+    expect(beatAtOffset(measure, 0)).toBe(measure.beats[0]);
+  });
+
+  it('tolerates a boundary the audio clock lands a hair short of', () => {
+    // The playhead reads seconds and converts, so it arrives at 0.25 as
+    // 0.2499999999. Snapping backwards there would flicker a beat late.
+    const measure = quarters();
+    expect(beatAtOffset(measure, 0.25 - 1e-12)).toBe(measure.beats[1]);
+  });
+
+  it('has no beat in the empty tail of a partly filled bar', () => {
+    const track = open([createStringTrack('guitar', { measureCount: 1 })]);
+    store().setCursor({ trackId: track.id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.applyNoteInput(fretInput(0, 3)); // one quarter in a 4/4 bar
+    expect(beatAtOffset(guitar().measures[0]!, 0.9)).toBeUndefined();
+  });
+
+  it('has no beat in an empty bar or a missing one', () => {
+    const track = open([createStringTrack('guitar', { measureCount: 1 })]);
+    expect(beatAtOffset(track.measures[0], 0)).toBeUndefined();
+    expect(beatAtOffset(undefined, 0)).toBeUndefined();
+  });
+});
+
 describe('soundingPositions', () => {
   it('reports every note of the beat, not just the cursor line', () => {
     const cursor = chord();
@@ -104,6 +151,19 @@ describe('soundingPositions', () => {
     expect(
       C.soundingPositions(track, { trackId: track.id, measureIndex: 0, beatIndex: 0, line: 0 }),
     ).toEqual([]);
+  });
+
+  it('emphasises nothing when there is no cursor, as during playback', () => {
+    const cursor = chord();
+    const beat = guitar().measures[0]!.beats[0];
+    // Playback has no "note under the cursor" to pick out of a sounding chord.
+    const positions = C.positionsInBeat(guitar(), beat, null);
+    expect(positions).toHaveLength(3);
+    expect(positions.some((p) => p.onCursorString)).toBe(false);
+    // The cursor path still emphasises, so the two modes are genuinely distinct.
+    expect(
+      C.soundingPositions(guitar(), { ...cursor, line: 1 }).some((p) => p.onCursorString),
+    ).toBe(true);
   });
 
   it('drops a note the instrument cannot reach rather than resolving it', () => {

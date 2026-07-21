@@ -216,6 +216,34 @@ export function beatAt<N extends AnyNote>(
   );
 }
 
+/**
+ * The beat sounding at a *clock* position within a measure.
+ *
+ * Takes a float rather than a `Fraction` because the caller is the playhead,
+ * and a reading off the audio clock genuinely lands between beats — converting
+ * it to an exact rational would invent a precision it does not have. This is
+ * the one place a float position is legitimate, and it is read-only: nothing
+ * here can reach the document.
+ */
+export function beatAtOffset(
+  // Structural rather than `Measure<N>`, like `measureFilled` above: which beat
+  // is sounding has nothing to do with what sort of notes are in it, and the
+  // generic form cannot take a measure from either kind of track.
+  measure: { readonly beats: readonly Beat[] } | undefined,
+  offset: number,
+): Beat | undefined {
+  if (!measure) return undefined;
+  // Nudged forward by a hair before comparing, so a reading that arrives at a
+  // boundary as 0.2499999999 lands on the beat starting there. Relaxing only
+  // the lower edge would not do it: the previous beat's upper edge still
+  // contains that sample, and it is found first.
+  const at = offset + 1e-9;
+  return measure.beats.find((b) => {
+    const start = F.toNumber(b.start);
+    return at >= start && at < start + F.toNumber(b.duration);
+  });
+}
+
 /** Index of the beat starting exactly at `position`, or -1. */
 export function beatIndexAtStart<N extends AnyNote>(
   measure: Measure<N>,
