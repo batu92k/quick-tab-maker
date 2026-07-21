@@ -20,6 +20,23 @@ import {
 const guitarOnly = (measureCount = 4): Song =>
   createSong({ tracks: [createStringTrack('guitar', { measureCount })] });
 
+/** Guitar in eighths over bass in quarters — the ordinary multi-track case. */
+const mixedRhythms = (): Song =>
+  produce(
+    createSong({
+      tracks: [
+        createStringTrack('guitar', { measureCount: 1 }),
+        createStringTrack('bass', { measureCount: 1 }),
+      ],
+    }),
+    (d) => {
+      const guitar = d.tracks[0]!.id;
+      const bass = d.tracks[1]!.id;
+      for (let i = 0; i < 8; i++) E.setNote(d, guitar, 0, i, 0, 0, F.EIGHTH);
+      for (let i = 0; i < 4; i++) E.setNote(d, bass, 0, i, 0, 0, F.QUARTER);
+    },
+  );
+
 describe('lineForNote', () => {
   it('draws the highest string on the top line', () => {
     const song = guitarOnly();
@@ -58,7 +75,7 @@ describe('lineForNote', () => {
 describe('measure widths', () => {
   it('never collapses an empty measure below the minimum', () => {
     const song = guitarOnly();
-    const width = naturalMeasureWidth(song, song.tracks[0]!, 0, DEFAULT_LAYOUT_OPTIONS);
+    const width = naturalMeasureWidth(song, 0, DEFAULT_LAYOUT_OPTIONS);
     expect(width).toBeGreaterThanOrEqual(DEFAULT_LAYOUT_OPTIONS.minMeasureWidth);
   });
 
@@ -76,7 +93,7 @@ describe('measure widths', () => {
     expect(hasRoomToAppend(song, track, 1)).toBe(true);
 
     // The full bar is exactly its content plus padding — no trailing slot.
-    const full = naturalMeasureWidth(song, track, 0, DEFAULT_LAYOUT_OPTIONS);
+    const full = naturalMeasureWidth(song, 0, DEFAULT_LAYOUT_OPTIONS);
     const contentWidth = 8 * (DEFAULT_LAYOUT_OPTIONS.beatBaseWidth + DEFAULT_LAYOUT_OPTIONS.beatDurationWidth / 8);
     expect(full).toBeCloseTo(contentWidth + DEFAULT_LAYOUT_OPTIONS.measurePadding * 2);
   });
@@ -101,8 +118,7 @@ describe('measure widths', () => {
     const song = produce(guitarOnly(), (d) => {
       E.setNote(d, d.tracks[0]!.id, 0, 0, 0, 3, F.QUARTER);
     });
-    const track = song.tracks[0]!;
-    const withRoom = naturalMeasureWidth(song, track, 0, DEFAULT_LAYOUT_OPTIONS);
+    const withRoom = naturalMeasureWidth(song, 0, DEFAULT_LAYOUT_OPTIONS);
     const beatOnly =
       DEFAULT_LAYOUT_OPTIONS.beatBaseWidth + DEFAULT_LAYOUT_OPTIONS.beatDurationWidth / 4;
     expect(withRoom).toBeGreaterThan(beatOnly + DEFAULT_LAYOUT_OPTIONS.measurePadding * 2);
@@ -114,9 +130,8 @@ describe('measure widths', () => {
       E.setNote(d, id, 0, 0, 0, 1, F.QUARTER); // one quarter
       for (let i = 0; i < 8; i++) E.setNote(d, id, 1, i, 0, i, F.EIGHTH); // eight eighths
     });
-    const track = song.tracks[0]!;
-    const sparse = naturalMeasureWidth(song, track, 0, DEFAULT_LAYOUT_OPTIONS);
-    const dense = naturalMeasureWidth(song, track, 1, DEFAULT_LAYOUT_OPTIONS);
+    const sparse = naturalMeasureWidth(song, 0, DEFAULT_LAYOUT_OPTIONS);
+    const dense = naturalMeasureWidth(song, 1, DEFAULT_LAYOUT_OPTIONS);
     expect(dense).toBeGreaterThan(sparse);
   });
 });
@@ -372,15 +387,17 @@ describe('playheadPosition', () => {
     const beats = layout.systems[0]!.staves[0]!.measures[0]!.beats;
 
     for (const [i, beat] of beats.entries()) {
-      const head = playheadPosition(layout, 0, i * 0.25, 1)!;
-      expect(head.x).toBeCloseTo(beat.left);
+      const head = playheadPosition(layout, 0, i * 0.25)!;
+      // On the notehead itself, not the left edge of its column: the point of
+      // the playhead is to say "this note, now".
+      expect(head.x).toBeCloseTo(beat.x);
     }
   });
 
   it('moves left to right within a beat', () => {
     const layout = layoutSong(withBeats(), { width: 2400 });
-    const early = playheadPosition(layout, 0, 0.02, 1)!;
-    const late = playheadPosition(layout, 0, 0.2, 1)!;
+    const early = playheadPosition(layout, 0, 0.02)!;
+    const late = playheadPosition(layout, 0, 0.2)!;
     expect(late.x).toBeGreaterThan(early.x);
   });
 
@@ -390,13 +407,25 @@ describe('playheadPosition', () => {
     // sounding. Half way through the bar must land on the third quarter.
     const layout = layoutSong(withBeats(), { width: 2400 });
     const third = layout.systems[0]!.staves[0]!.measures[0]!.beats[2]!;
-    expect(playheadPosition(layout, 0, 0.5, 1)!.x).toBeCloseTo(third.left);
+    expect(playheadPosition(layout, 0, 0.5)!.x).toBeCloseTo(third.x);
+  });
+
+  it('is right about every track at once, not just the top staff', () => {
+    // The regression this whole grid exists for: the playhead followed staff 0,
+    // so on a song whose bass moves in quarters against a guitar in eighths it
+    // was visibly wrong about the bass on every beat.
+    const layout = layoutSong(mixedRhythms(), { width: 2400 });
+    const [guitar, bass] = layout.systems[0]!.staves;
+    const head = playheadPosition(layout, 0, 0.25)!;
+
+    expect(head.x).toBeCloseTo(guitar!.measures[0]!.beats[2]!.x);
+    expect(head.x).toBeCloseTo(bass!.measures[0]!.beats[1]!.x);
   });
 
   it('spans every staff of its system', () => {
     const layout = layoutSong(demoSong(), { width: 2400 });
     const system = layout.systems[0]!;
-    const head = playheadPosition(layout, 0, 0, 1)!;
+    const head = playheadPosition(layout, 0, 0)!;
     expect(head.y).toBeLessThanOrEqual(system.y);
     expect(head.y + head.height).toBeGreaterThanOrEqual(system.y + system.height);
   });
@@ -410,13 +439,45 @@ describe('playheadPosition', () => {
     const layout = layoutSong(song, { width: 2400 });
     const measure = layout.systems[0]!.staves[0]!.measures[0]!;
 
-    const head = playheadPosition(layout, 0, 0.75, 1)!;
+    const head = playheadPosition(layout, 0, 0.75)!;
     expect(head.x).toBeGreaterThan(measure.beats[0]!.left);
     expect(head.x).toBeLessThanOrEqual(measure.x + measure.width);
   });
 
   it('has no position for a bar outside the score', () => {
     const layout = layoutSong(guitarOnly(2), { width: 2400 });
-    expect(playheadPosition(layout, 9, 0, 1)).toBeUndefined();
+    expect(playheadPosition(layout, 9, 0)).toBeUndefined();
+  });
+});
+
+describe('alignment across tracks', () => {
+  it('draws simultaneous notes at the same x', () => {
+    // A bass quarter starting on beat 2 sounds at the same instant as the
+    // guitar's third eighth, so a reader must see them in one column.
+    const layout = layoutSong(mixedRhythms(), { width: 2400 });
+    const [guitar, bass] = layout.systems[0]!.staves;
+    const gx = guitar!.measures[0]!.beats.map((b) => b.x);
+    const bx = bass!.measures[0]!.beats.map((b) => b.x);
+
+    expect(bx[0]).toBeCloseTo(gx[0]!);
+    expect(bx[1]).toBeCloseTo(gx[2]!);
+    expect(bx[2]).toBeCloseTo(gx[4]!);
+    expect(bx[3]).toBeCloseTo(gx[6]!);
+  });
+
+  it('gives a longer note a wider column than the notes it spans', () => {
+    // The bass quarter must cover both guitar eighths, so clicking anywhere
+    // under it selects it rather than falling through to empty space.
+    const layout = layoutSong(mixedRhythms(), { width: 2400 });
+    const [guitar, bass] = layout.systems[0]!.staves;
+    const quarter = bass!.measures[0]!.beats[0]!;
+    const eighth = guitar!.measures[0]!.beats[0]!;
+    expect(quarter.width).toBeCloseTo(eighth.width * 2);
+  });
+
+  it('shares one column grid across every staff', () => {
+    const layout = layoutSong(mixedRhythms(), { width: 2400 });
+    const [guitar, bass] = layout.systems[0]!.staves;
+    expect(bass!.measures[0]!.columns).toEqual(guitar!.measures[0]!.columns);
   });
 });

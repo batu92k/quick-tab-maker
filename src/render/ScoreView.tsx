@@ -13,14 +13,12 @@
  */
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import * as F from '../model/fraction';
 import type { Cursor, Song } from '../model/types';
 import { Score } from './Score';
 import {
   cursorPosition,
   hitTest,
   layoutSong,
-  measureDurations,
   playheadPosition,
   type HitResult,
   type LayoutOptions,
@@ -71,15 +69,12 @@ export function ScoreView({ song, options, cursor, playhead, onHit }: ScoreViewP
     );
   }, [layout, cursor]);
 
-  // Recomputed every frame during playback, so both halves stay cheap: the bar
-  // durations are memoised against the song, and only the interpolation runs.
-  const barDurations = useMemo(() => measureDurations(song), [song]);
-  const playheadGeometry = useMemo(() => {
-    if (!playhead) return undefined;
-    const bar = barDurations[playhead.bar];
-    if (!bar) return undefined;
-    return playheadPosition(layout, playhead.bar, playhead.offset, F.toNumber(bar));
-  }, [layout, playhead, barDurations]);
+  // Recomputed every frame during playback, which is cheap: the layout is
+  // memoised against the song, and this walks one bar's onset grid.
+  const playheadGeometry = useMemo(
+    () => (playhead ? playheadPosition(layout, playhead.bar, playhead.offset) : undefined),
+    [layout, playhead],
+  );
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {

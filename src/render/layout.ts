@@ -111,12 +111,26 @@ export interface LaidOutBeat {
   readonly isRest: boolean;
 }
 
+/** One instant in a bar, and the x every track draws it at. */
+export interface MeasureColumn {
+  /** Offset into the bar in whole notes. */
+  readonly at: number;
+  readonly x: number;
+}
+
 export interface LaidOutMeasure {
   readonly measure: Measure;
   readonly measureIndex: number;
   readonly x: number;
   readonly width: number;
   readonly beats: readonly LaidOutBeat[];
+  /**
+   * The bar's shared onset grid in screen coordinates. Every staff in the
+   * system has the same one, which is what the playhead follows — it can then
+   * be right about all tracks at once rather than about whichever staff it
+   * happened to be handed.
+   */
+  readonly columns: readonly MeasureColumn[];
   /** Set when this measure introduces a new time signature. */
   readonly timeSigChange?: TimeSignature;
   /**
@@ -180,37 +194,98 @@ export function hasRoomToAppend(song: Song, track: Track, measureIndex: number):
   return F.lt(measureFilled(measure), measureCapacity(song, track, measureIndex));
 }
 
+/* -------------------------------------------------------------------------- */
+/* The shared rhythmic grid                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Where every track's notes may start within one bar, and the x each of those
+ * instants gets.
+ *
+ * This is the thing that makes a multi-track score readable: two notes that
+ * sound together must be drawn in one vertical column. Laying each track out
+ * independently inside a shared bar width does not achieve that — a bar of
+ * quarters and a bar of eighths both fill the bar, but their onsets land in
+ * different places, so the bass drifts against the guitar and the playhead can
+ * only ever be right about one of them.
+ *
+ * So the bar is divided once, at the union of every track's onsets, and each
+ * track is positioned into that division. A guitar eighth and a bass quarter
+ * beginning at the same instant then share an x by construction.
+ *
+ * The bar's own end is always a grid position. That is what gives a partly
+ * filled bar its empty tail — the space a new note gets appended into — while a
+ * bar that is full for every track ends exactly at its last note and grows no
+ * phantom trailing slot.
+ */
+export interface MeasureGrid {
+  /** Onsets in the bar, ascending, from zero to the bar's musical end. */
+  readonly positions: readonly Fraction[];
+  /** Unstretched x of each position, measured from the start of the content. */
+  readonly xs: readonly number[];
+  /** Total unstretched content width. */
+  readonly width: number;
+}
+
+const key = (f: Fraction): string => `${f.n}/${f.d}`;
+
+/** Musical capacity of a bar, from the track grid all tracks share. */
+function barCapacity(song: Song, measureIndex: number): Fraction {
+  const track = song.tracks[0];
+  if (track) return measureCapacity(song, track, measureIndex);
+  const sig = timeSignatureAt(song, measureIndex);
+  return F.measureDuration(sig.num, sig.den);
+}
+
+export function measureGrid(song: Song, measureIndex: number, o: LayoutOptions): MeasureGrid {
+  const seen = new Map<string, Fraction>([[key(F.ZERO), F.ZERO]]);
+  const add = (f: Fraction): void => {
+    seen.set(key(f), f);
+  };
+
+  for (const track of song.tracks) {
+    for (const beat of track.measures[measureIndex]?.beats ?? []) {
+      add(beat.start);
+      // Both edges: a note's end is a column boundary even when no other track
+      // happens to start something there.
+      add(F.add(beat.start, beat.duration));
+    }
+  }
+  add(barCapacity(song, measureIndex));
+
+  const positions = [...seen.values()].sort(F.cmp);
+  const xs: number[] = [0];
+  for (let i = 1; i < positions.length; i++) {
+    xs.push(xs[i - 1]! + beatWidth(F.sub(positions[i]!, positions[i - 1]!), o));
+  }
+  return { positions, xs, width: xs[xs.length - 1] ?? 0 };
+}
+
+/**
+ * Half the column that starts at grid index `i`.
+ *
+ * Notes are drawn at their onset plus this, rather than at the centre of their
+ * own duration. Centring is what breaks alignment: a quarter centred over its
+ * own span sits between the two eighths it should be lining up with. Offsetting
+ * every track by the same first-column half keeps a column a column.
+ */
+function halfColumn(grid: MeasureGrid, i: number): number {
+  const next = grid.xs[i + 1];
+  // The final position is the bar's end, which no note can start at. It gets no
+  // offset, so it lands on the content edge instead of overshooting the bar
+  // line by half a column and dragging the playhead out of its own measure.
+  return next === undefined ? 0 : (next - grid.xs[i]!) / 2;
+}
+
 /**
  * Natural width of a measure, before it is stretched to fill a system.
  *
  * An empty measure still needs its minimum: a bar of rests is a real thing a
  * user clicks into, and collapsing it to nothing makes it unselectable.
- *
- * Space for one more beat is reserved only when the bar can actually take one.
- * A full 4/4 bar of eighths has no room for a ninth note, and reserving the
- * slot anyway draws a trailing gap that reads as an extra beat position the
- * user can fill — which they cannot.
  */
-export function naturalMeasureWidth(
-  song: Song,
-  track: Track,
-  measureIndex: number,
-  o: LayoutOptions,
-): number {
-  const measure = track.measures[measureIndex];
-  if (!measure) return o.minMeasureWidth;
-
-  const content = measure.beats.reduce((sum, beat) => sum + beatWidth(beat.duration, o), 0);
-  const append = hasRoomToAppend(song, track, measureIndex) ? o.beatBaseWidth : 0;
-  return Math.max(o.minMeasureWidth, content + append + o.measurePadding * 2);
-}
-
-/** The widest natural width across tracks — all tracks share a bar grid. */
-function sharedMeasureWidth(song: Song, measureIndex: number, o: LayoutOptions): number {
-  return song.tracks.reduce(
-    (max, track) => Math.max(max, naturalMeasureWidth(song, track, measureIndex, o)),
-    o.minMeasureWidth,
-  );
+export function naturalMeasureWidth(song: Song, measureIndex: number, o: LayoutOptions): number {
+  const grid = measureGrid(song, measureIndex, o);
+  return Math.max(o.minMeasureWidth, grid.width + o.measurePadding * 2);
 }
 
 function staffLineCount(track: Track): number {
@@ -252,6 +327,7 @@ export function lineForNote(track: Track, note: AnyNote): number {
 function layoutMeasure(
   track: Track,
   measureIndex: number,
+  grid: MeasureGrid,
   x: number,
   width: number,
   staffTop: number,
@@ -263,25 +339,44 @@ function layoutMeasure(
   // last stay equal. Leaving it unscaled dumps the whole justification surplus
   // on the right-hand side, which reads as a trailing empty beat.
   const pad = o.measurePadding * scale;
+  const contentLeft = x + pad;
+
+  // Grid offsets are scaled by the same factor as the bar, so the rhythm
+  // spreads across the justified measure instead of bunching at the left.
+  // Scaling every column equally preserves their relative spacing, so a bar of
+  // eighths still reads as evenly spaced and a dotted note still looks longer
+  // than the note after it.
+  const edgeAt = (i: number): number => contentLeft + grid.xs[i]! * scale;
+  const columnAt = (i: number): number => edgeAt(i) + halfColumn(grid, i) * scale;
+
+  const columns: MeasureColumn[] = grid.positions.map((position, i) => ({
+    at: F.toNumber(position),
+    x: columnAt(i),
+  }));
+
+  const indexOf = new Map(grid.positions.map((p, i) => [key(p), i]));
   const empty: LaidOutMeasure = {
     measure: measure ?? { id: `missing_${measureIndex}`, beats: [] },
     measureIndex,
     x,
     width,
     beats: [],
-    appendX: x + pad + (o.beatBaseWidth * scale) / 2,
+    columns,
+    appendX: columnAt(0),
   };
   if (!measure) return empty;
 
-  // Beat widths are scaled by the same factor as the bar, so the rhythm
-  // spreads across the justified measure instead of bunching at the left.
-  // Scaling every beat equally preserves their relative spacing, so a bar of
-  // eighths still reads as evenly spaced and a dotted note still looks longer
-  // than the note after it.
-  let cursor = x + pad;
+  let end = 0;
   const beats: LaidOutBeat[] = measure.beats.map((beat, beatIndex) => {
-    const width = beatWidth(beat.duration, o) * scale;
-    const centre = cursor + width / 2;
+    const from = indexOf.get(key(beat.start)) ?? 0;
+    const to = indexOf.get(key(F.add(beat.start, beat.duration))) ?? from + 1;
+    end = to;
+
+    // `left`/`width` span the note's whole sounding time, so clicking anywhere
+    // under a long note selects it. `x` is the column, which is where the
+    // notehead goes and where every other track's simultaneous note goes too.
+    const left = edgeAt(from);
+    const centre = columnAt(from);
     const notes: LaidOutNote[] = beat.notes.map((note) => {
       const line = lineForNote(track, note);
       return {
@@ -292,23 +387,24 @@ function layoutMeasure(
         line,
       };
     });
-    const laidOut: LaidOutBeat = {
+    return {
       beat,
       beatIndex,
       x: centre,
-      left: cursor,
-      width,
+      left,
+      width: Math.max(edgeAt(Math.min(to, grid.xs.length - 1)) - left, 0),
       notes,
       isRest: beat.notes.length === 0,
     };
-    cursor += width;
-    return laidOut;
   });
 
   return {
     ...empty,
     beats,
-    appendX: cursor + (o.beatBaseWidth * scale) / 2,
+    // The next note lands in the first free column. In a full bar that is the
+    // bar's end, which carries no offset, so the cursor sits against the bar
+    // line rather than beyond it.
+    appendX: columnAt(Math.min(end, grid.positions.length - 1)),
     ...(measure.timeSig ? { timeSigChange: measure.timeSig } : {}),
   };
 }
@@ -327,7 +423,8 @@ export function layoutSong(song: Song, options: Partial<LayoutOptions> = {}): La
   const available = contentRight - contentLeft;
 
   const barCount = song.tracks.reduce((max, t) => Math.max(max, t.measures.length), 0);
-  const widths = Array.from({ length: barCount }, (_, i) => sharedMeasureWidth(song, i, o));
+  const grids = Array.from({ length: barCount }, (_, i) => measureGrid(song, i, o));
+  const widths = grids.map((grid) => Math.max(o.minMeasureWidth, grid.width + o.measurePadding * 2));
 
   // Greedy packing: fill a system until the next bar would overflow it.
   const rows: { first: number; last: number }[] = [];
@@ -368,7 +465,7 @@ export function layoutSong(song: Song, options: Partial<LayoutOptions> = {}): La
       let x = contentLeft;
       for (let i = row.first; i < row.last; i++) {
         const width = widths[i]! * scale;
-        measures.push(layoutMeasure(track, i, x, width, staffTop, o, scale));
+        measures.push(layoutMeasure(track, i, grids[i]!, x, width, staffTop, o, scale));
         x += width;
       }
 
@@ -534,47 +631,37 @@ export interface PlayheadGeometry {
 /**
  * Horizontal position of a musical offset inside a laid-out bar.
  *
- * Interpolated across the beat columns rather than linearly across the bar,
- * because bar width is only *partly* proportional to duration — that is a
- * deliberate layout choice, and a playhead that ignores it slides visibly off
- * the notes it is supposed to be sounding. Inside a beat the motion is linear,
+ * Interpolated across the bar's shared onset grid rather than linearly across
+ * its width, because bar width is only *partly* proportional to duration — that
+ * is a deliberate layout choice, and a playhead that ignores it slides off the
+ * notes it is supposed to be sounding. Between two onsets the motion is linear,
  * which is correct: nothing happens between two attacks.
- */
-function playheadX(measure: LaidOutMeasure, offset: number, barDuration: number): number {
-  let elapsed = 0;
-  for (const beat of measure.beats) {
-    const duration = F.toNumber(beat.beat.duration);
-    if (offset < elapsed + duration) {
-      return beat.left + ((offset - elapsed) / duration) * beat.width;
-    }
-    elapsed += duration;
-  }
-
-  // Past the last beat: the rest of the bar is empty, so spread what remains of
-  // the musical time across what remains of the width.
-  const tail = Math.max(barDuration - elapsed, 1e-6);
-  const from = measure.beats.length > 0 ? lastEdge(measure) : measure.x;
-  const width = Math.max(measure.x + measure.width - from, 0);
-  return from + Math.min((offset - elapsed) / tail, 1) * width;
-}
-
-function lastEdge(measure: LaidOutMeasure): number {
-  const last = measure.beats[measure.beats.length - 1];
-  return last ? last.left + last.width : measure.x;
-}
-
-/**
- * Where to draw the playhead, spanning every staff of its system.
  *
- * `barDuration` comes from `measureDurations` rather than being recomputed here
- * so the playhead and the bar grid agree about how long a bar is even when a
- * time signature changes mid-song.
+ * Because the grid is shared, landing on a column means landing on every
+ * track's note at that instant, not just the top staff's.
  */
+function playheadX(measure: LaidOutMeasure, offset: number): number {
+  const columns = measure.columns;
+  const first = columns[0];
+  if (!first) return measure.x;
+  if (offset <= first.at) return first.x;
+
+  for (let i = 1; i < columns.length; i++) {
+    const to = columns[i]!;
+    if (offset < to.at) {
+      const from = columns[i - 1]!;
+      const span = to.at - from.at;
+      return span <= 0 ? from.x : from.x + ((offset - from.at) / span) * (to.x - from.x);
+    }
+  }
+  return columns[columns.length - 1]!.x;
+}
+
+/** Where to draw the playhead, spanning every staff of its system. */
 export function playheadPosition(
   layout: Layout,
   bar: number,
   offset: number,
-  barDuration: number,
 ): PlayheadGeometry | undefined {
   const o = layout.options;
   for (const system of layout.systems) {
@@ -583,7 +670,7 @@ export function playheadPosition(
     const measure = staff?.measures.find((m) => m.measureIndex === bar);
     if (!measure) return undefined;
     return {
-      x: playheadX(measure, offset, barDuration),
+      x: playheadX(measure, offset),
       y: system.y - o.lineSpacing / 2,
       height: system.height + o.lineSpacing,
     };
@@ -591,15 +678,3 @@ export function playheadPosition(
   return undefined;
 }
 
-/** Musical time each bar occupies, exposed for the playhead and rulers. */
-export function measureDurations(song: Song): Fraction[] {
-  const barCount = song.tracks.reduce((max, t) => Math.max(max, t.measures.length), 0);
-  return Array.from({ length: barCount }, (_, i) => {
-    const track = song.tracks[0];
-    if (!track) {
-      const sig = timeSignatureAt(song, i);
-      return F.measureDuration(sig.num, sig.den);
-    }
-    return measureCapacity(song, track, i);
-  });
-}
