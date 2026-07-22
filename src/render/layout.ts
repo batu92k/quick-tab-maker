@@ -24,7 +24,9 @@ import {
   type TimeSignature,
   type Track,
 } from '../model/types';
+import { chordForStringBeat } from '../theory/chords';
 import { DRUM_ROW_COUNT, rowForPiece } from '../theory/drums';
+import { specOf } from '../theory/midi';
 
 /* -------------------------------------------------------------------------- */
 /* Options                                                                    */
@@ -109,6 +111,12 @@ export interface LaidOutBeat {
   readonly width: number;
   readonly notes: readonly LaidOutNote[];
   readonly isRest: boolean;
+  /**
+   * Name of the chord this beat's notes spell, when they spell one — drawn
+   * above the staff as a chord sheet would. Only string beats carry it; a beat
+   * that names no chord leaves it undefined and nothing is drawn.
+   */
+  readonly chord?: string;
 }
 
 /** One instant in a bar, and the x every track draws it at. */
@@ -354,6 +362,10 @@ function layoutMeasure(
     x: columnAt(i),
   }));
 
+  // Resolved once for the bar, not per beat: the fretboard spec is the same for
+  // every note on the staff, and naming a chord costs a tonal analysis.
+  const spec = isStringTrack(track) ? specOf(track) : null;
+
   const indexOf = new Map(grid.positions.map((p, i) => [key(p), i]));
   const empty: LaidOutMeasure = {
     measure: measure ?? { id: `missing_${measureIndex}`, beats: [] },
@@ -387,6 +399,7 @@ function layoutMeasure(
         line,
       };
     });
+    const chord = spec ? chordForStringBeat(spec, beat.notes as readonly Note[]) : null;
     return {
       beat,
       beatIndex,
@@ -395,6 +408,7 @@ function layoutMeasure(
       width: Math.max(edgeAt(Math.min(to, grid.xs.length - 1)) - left, 0),
       notes,
       isRest: beat.notes.length === 0,
+      ...(chord ? { chord } : {}),
     };
   });
 

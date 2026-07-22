@@ -314,6 +314,21 @@ const Staff = memo(function Staff({ staff, system, options }: StaffProps) {
               options={options}
             />
           ))}
+          {/* Chord names, above the staff, as a chord sheet would place them. */}
+          {measure.beats.map((beat) =>
+            beat.chord ? (
+              <text
+                key={`chord-${beat.beat.id}`}
+                className="qtm-chord"
+                x={beat.x}
+                y={staff.y - options.lineSpacing * 1.2}
+                textAnchor="middle"
+                fontSize={options.fontSize * 1.05}
+              >
+                {beat.chord}
+              </text>
+            ) : null,
+          )}
         </g>
       ))}
     </g>

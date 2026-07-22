@@ -168,6 +168,15 @@
   stroke-width: 1;
 }
 
+/* Chord names sit above the staff, in the UI font and a touch bolder than the
+   tab so they read as annotation rather than as part of the grid. */
+.qtm-chord {
+  fill: var(--qtm-text);
+  font-family: var(--qtm-font-ui);
+  font-weight: 600;
+  user-select: none;
+}
+
 /* Warm rather than accent-coloured: the playhead and the editing caret are on
    screen at the same time and must not be mistaken for one another. */
 .qtm-playhead {
