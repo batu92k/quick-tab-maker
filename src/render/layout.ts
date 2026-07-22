@@ -70,9 +70,10 @@ const LAST_SYSTEM_MAX_STRETCH = 2.5;
 
 export const DEFAULT_LAYOUT_OPTIONS: LayoutOptions = {
   width: 1000,
-  // Room above the first staff for the track name and bar numbers, which are
-  // drawn above the top staff line and would otherwise be clipped.
-  marginTop: 34,
+  // Room above the first staff for the scrub ruler, chord names, the track name
+  // and bar numbers, which all stack above the top staff line and would
+  // otherwise be clipped. Later systems get the same stack from `systemGap`.
+  marginTop: 46,
   marginX: 16,
   lineSpacing: 14,
   trackGap: 36,
@@ -654,7 +655,7 @@ export interface PlayheadGeometry {
  * Because the grid is shared, landing on a column means landing on every
  * track's note at that instant, not just the top staff's.
  */
-function playheadX(measure: LaidOutMeasure, offset: number): number {
+export function offsetToX(measure: LaidOutMeasure, offset: number): number {
   const columns = measure.columns;
   const first = columns[0];
   if (!first) return measure.x;
@@ -671,6 +672,29 @@ function playheadX(measure: LaidOutMeasure, offset: number): number {
   return columns[columns.length - 1]!.x;
 }
 
+/**
+ * The offset a score x maps to inside a laid-out bar — the inverse of
+ * `offsetToX`, used to scrub the playhead to where a pointer landed. Continuous
+ * between onsets, matching the interpolation the playhead draws with, so the
+ * place a click lands and the place the line then sits are the same.
+ */
+function offsetAtX(measure: LaidOutMeasure, x: number): number {
+  const columns = measure.columns;
+  const first = columns[0];
+  if (!first) return 0;
+  if (x <= first.x) return first.at;
+
+  for (let i = 1; i < columns.length; i++) {
+    const to = columns[i]!;
+    if (x < to.x) {
+      const from = columns[i - 1]!;
+      const span = to.x - from.x;
+      return span <= 0 ? from.at : from.at + ((x - from.x) / span) * (to.at - from.at);
+    }
+  }
+  return columns[columns.length - 1]!.at;
+}
+
 /** Where to draw the playhead, spanning every staff of its system. */
 export function playheadPosition(
   layout: Layout,
@@ -684,10 +708,69 @@ export function playheadPosition(
     const measure = staff?.measures.find((m) => m.measureIndex === bar);
     if (!measure) return undefined;
     return {
-      x: playheadX(measure, offset),
+      x: offsetToX(measure, offset),
       y: system.y - o.lineSpacing / 2,
       height: system.height + o.lineSpacing,
     };
+  }
+  return undefined;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Scrub ruler                                                                */
+/* -------------------------------------------------------------------------- */
+
+export interface RulerBand {
+  /** y of the ruler's baseline line. */
+  readonly line: number;
+  /** Top and bottom of the clickable strip, above the top staff. */
+  readonly top: number;
+  readonly bottom: number;
+}
+
+/**
+ * The scrub ruler's vertical geometry above a system's top staff. Shared by the
+ * renderer, which draws the ticks here, and the hit test, which decides a click
+ * belongs to the ruler rather than to a note — so the strip you see is exactly
+ * the strip that scrubs. The bottom stops just short of the staff's own click
+ * region, so it never swallows a click meant for the top string.
+ */
+export function rulerBand(systemY: number, o: LayoutOptions): RulerBand {
+  const line = systemY - o.lineSpacing * 1.6;
+  return { line, top: line - 9, bottom: systemY - o.lineSpacing * 0.55 };
+}
+
+export interface ScrubTarget {
+  readonly bar: number;
+  /** Continuous whole-note offset into the bar. */
+  readonly offset: number;
+}
+
+/**
+ * Maps a click on the ruler to a musical position, for scrubbing the playhead.
+ *
+ * Returns undefined unless the point lands in some system's ruler band, which
+ * is how the caller tells a scrub from an edit without a separate surface. The x
+ * is clamped into the system's content, so a click in the ruler's margins still
+ * grabs the nearest end of the bar rather than nothing.
+ */
+export function positionAtX(layout: Layout, x: number, y: number): ScrubTarget | undefined {
+  const o = layout.options;
+  for (const system of layout.systems) {
+    const band = rulerBand(system.y, o);
+    if (y < band.top || y > band.bottom) continue;
+
+    const staff = system.staves[0];
+    if (!staff) return undefined;
+    const clampedX = Math.min(Math.max(x, system.contentLeft), system.contentRight);
+
+    let target = staff.measures[0];
+    for (const measure of staff.measures) {
+      target = measure;
+      if (clampedX < measure.x + measure.width) break;
+    }
+    if (!target) return undefined;
+    return { bar: target.measureIndex, offset: offsetAtX(target, clampedX) };
   }
   return undefined;
 }

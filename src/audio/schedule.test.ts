@@ -22,6 +22,8 @@ import {
   metronomeClicks,
   positionAtTime,
   scheduleSong,
+  secondsAt,
+  snapToGrid,
   songDuration,
 } from './schedule';
 
@@ -314,5 +316,48 @@ describe('buildPlan', () => {
     const song = songOf([createStringTrack('guitar', { measureCount: 4 })]);
     expect(buildPlan(song, { loop: { startBar: 2, endBar: 2 } }).loop).toBeNull();
     expect(buildPlan(song, { loop: { startBar: 3, endBar: 1 } }).loop).toBeNull();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Scrubbing: secondsAt and snapToGrid                                        */
+/* -------------------------------------------------------------------------- */
+
+describe('secondsAt', () => {
+  it('places an offset into a bar in seconds at that bar tempo', () => {
+    // 120 BPM: a 4/4 bar is 2s, a quarter (1/4 whole note) is 0.5s.
+    const song = songOf([createStringTrack('guitar', { measureCount: 4 })]);
+    expect(secondsAt(song, 0, 0)).toBeCloseTo(0);
+    expect(secondsAt(song, 0, 0.25)).toBeCloseTo(0.5); // beat 2
+    expect(secondsAt(song, 1, 0)).toBeCloseTo(2); // top of bar 2
+    expect(secondsAt(song, 2, 0.5)).toBeCloseTo(4 + 1); // bar 3 start + a half note
+  });
+});
+
+describe('snapToGrid', () => {
+  const song = songOf([createStringTrack('guitar', { measureCount: 4 })]);
+
+  it('rounds to the nearest subdivision line', () => {
+    // Eighths sit every 1/8 = 0.125 whole notes.
+    expect(snapToGrid(song, 0, 0.13, F.EIGHTH)).toEqual({ bar: 0, offset: 0.125 });
+    expect(snapToGrid(song, 0, 0.2, F.EIGHTH)).toEqual({ bar: 0, offset: 0.25 });
+    expect(snapToGrid(song, 0, 0.05, F.QUARTER)).toEqual({ bar: 0, offset: 0 });
+  });
+
+  it('rolls a snap on the closing barline forward to the next downbeat', () => {
+    // A click near the very end of a 4/4 bar (capacity 1 whole note) belongs to
+    // the next bar's beat 1, not to a phantom line on the barline.
+    expect(snapToGrid(song, 0, 0.97, F.EIGHTH)).toEqual({ bar: 1, offset: 0 });
+  });
+
+  it('clamps to the last grid line inside the final bar', () => {
+    // Nowhere to roll to, so it stays put on the last real line, not the barline.
+    const snapped = snapToGrid(song, 3, 0.99, F.QUARTER);
+    expect(snapped.bar).toBe(3);
+    expect(snapped.offset).toBeCloseTo(0.75);
+  });
+
+  it('never returns a negative offset', () => {
+    expect(snapToGrid(song, 0, -0.1, F.EIGHTH)).toEqual({ bar: 0, offset: 0 });
   });
 });

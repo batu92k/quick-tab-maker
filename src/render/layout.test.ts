@@ -14,7 +14,10 @@ import {
   layoutSong,
   lineForNote,
   naturalMeasureWidth,
+  offsetToX,
   playheadPosition,
+  positionAtX,
+  rulerBand,
 } from './layout';
 
 const guitarOnly = (measureCount = 4): Song =>
@@ -479,5 +482,49 @@ describe('alignment across tracks', () => {
     const layout = layoutSong(mixedRhythms(), { width: 2400 });
     const [guitar, bass] = layout.systems[0]!.staves;
     expect(bass!.measures[0]!.columns).toEqual(guitar!.measures[0]!.columns);
+  });
+});
+
+describe('scrub ruler', () => {
+  it('sits above the top staff, clear of its click region', () => {
+    const layout = layoutSong(mixedRhythms());
+    const system = layout.systems[0]!;
+    const band = rulerBand(system.y, layout.options);
+    // Entirely above the staff so a ruler click is never an edit and vice versa.
+    expect(band.bottom).toBeLessThan(system.staves[0]!.y - layout.options.lineSpacing / 2);
+    expect(band.top).toBeLessThan(band.line);
+  });
+
+  it('maps a ruler click back to the offset the playhead draws it at', () => {
+    const layout = layoutSong(mixedRhythms());
+    const system = layout.systems[0]!;
+    const measure = system.staves[0]!.measures[0]!;
+    const y = rulerBand(system.y, layout.options).line;
+
+    // Forward: where the playhead would sit for beat 2 (offset 1/4). Inverse:
+    // clicking there gets that offset back, so click and line agree.
+    for (const offset of [0, 0.25, 0.5, 0.75]) {
+      const x = offsetToX(measure, offset);
+      const target = positionAtX(layout, x, y)!;
+      expect(target.bar).toBe(0);
+      expect(target.offset).toBeCloseTo(offset, 5);
+    }
+  });
+
+  it('is not scrubbable off the ruler, on the staff', () => {
+    const layout = layoutSong(mixedRhythms());
+    const system = layout.systems[0]!;
+    const staff = system.staves[0]!;
+    const x = staff.measures[0]!.beats[0]!.x;
+    // A click on a note is an edit, not a scrub.
+    expect(positionAtX(layout, x, staff.y)).toBeUndefined();
+  });
+
+  it('clamps a click past the last bar to the end of the system', () => {
+    const layout = layoutSong(guitarOnly(2));
+    const system = layout.systems[0]!;
+    const y = rulerBand(system.y, layout.options).line;
+    const target = positionAtX(layout, system.contentRight + 200, y)!;
+    expect(target.bar).toBe(1); // the last bar, not undefined
   });
 });

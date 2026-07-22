@@ -16,14 +16,16 @@ import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
 import { isStringTrack, type DrumNote, type Note } from '../model/types';
 import { noteheadFor } from '../theory/drums';
-import type {
-  LaidOutBeat,
-  LaidOutMeasure,
-  LaidOutStaff,
-  LaidOutSystem,
-  Layout,
-  LayoutOptions,
-  PlayheadGeometry,
+import {
+  offsetToX,
+  rulerBand,
+  type LaidOutBeat,
+  type LaidOutMeasure,
+  type LaidOutStaff,
+  type LaidOutSystem,
+  type Layout,
+  type LayoutOptions,
+  type PlayheadGeometry,
 } from './layout';
 
 /* -------------------------------------------------------------------------- */
@@ -336,6 +338,69 @@ const Staff = memo(function Staff({ staff, system, options }: StaffProps) {
 });
 
 /* -------------------------------------------------------------------------- */
+/* Scrub ruler                                                                */
+/* -------------------------------------------------------------------------- */
+
+interface SystemRulerProps {
+  system: LaidOutSystem;
+  options: LayoutOptions;
+  /** Grid spacing in whole notes; ticks sit every multiple of it. */
+  sub: number;
+}
+
+/**
+ * The clickable timeline above a system. Ticks mark the snap grid so a click's
+ * landing point is legible; the transparent strip only exists to carry a
+ * pointer cursor — the scrub itself is handled at the SVG root, which owns the
+ * pixel/position mapping.
+ */
+const SystemRuler = memo(function SystemRuler({ system, options, sub }: SystemRulerProps) {
+  const staff = system.staves[0];
+  if (!staff || sub <= 0) return null;
+  const band = rulerBand(system.y, options);
+
+  const ticks: { x: number; strong: boolean }[] = [];
+  for (const measure of staff.measures) {
+    const cap = measure.columns[measure.columns.length - 1]?.at ?? 0;
+    for (let k = 0; k * sub < cap - 1e-9; k++) {
+      const at = k * sub;
+      // A tick on a quarter-note boundary reads as a beat and is drawn taller.
+      const strong = Math.abs(at / 0.25 - Math.round(at / 0.25)) < 1e-9;
+      ticks.push({ x: offsetToX(measure, at), strong });
+    }
+  }
+
+  return (
+    <g className="qtm-ruler">
+      <rect
+        className="qtm-ruler-hit"
+        x={system.contentLeft}
+        y={band.top}
+        width={system.contentRight - system.contentLeft}
+        height={band.bottom - band.top}
+      />
+      <line
+        className="qtm-ruler-line"
+        x1={system.contentLeft}
+        y1={band.line}
+        x2={system.contentRight}
+        y2={band.line}
+      />
+      {ticks.map((t, i) => (
+        <line
+          key={i}
+          className={t.strong ? 'qtm-ruler-tick qtm-ruler-tick--strong' : 'qtm-ruler-tick'}
+          x1={t.x}
+          y1={band.line}
+          x2={t.x}
+          y2={band.line - (t.strong ? 7 : 4)}
+        />
+      ))}
+    </g>
+  );
+});
+
+/* -------------------------------------------------------------------------- */
 /* Score                                                                      */
 /* -------------------------------------------------------------------------- */
 
@@ -345,11 +410,28 @@ export interface ScoreProps {
   cursor?: { x: number; y: number } | undefined;
   /** Vertical line following playback. */
   playhead?: PlayheadGeometry | undefined;
+  /**
+   * Snap grid spacing in whole notes. When set, the scrub ruler is drawn above
+   * each system with ticks at this interval; omitted for non-interactive
+   * renders like the PDF export.
+   */
+  rulerSub?: number | undefined;
   onPointerDown?: ((event: React.PointerEvent<SVGSVGElement>) => void) | undefined;
+  onPointerMove?: ((event: React.PointerEvent<SVGSVGElement>) => void) | undefined;
+  onPointerUp?: ((event: React.PointerEvent<SVGSVGElement>) => void) | undefined;
   className?: string | undefined;
 }
 
-export function Score({ layout, cursor, playhead, onPointerDown, className }: ScoreProps) {
+export function Score({
+  layout,
+  cursor,
+  playhead,
+  rulerSub,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  className,
+}: ScoreProps) {
   const { options } = layout;
 
   return (
@@ -359,6 +441,8 @@ export function Score({ layout, cursor, playhead, onPointerDown, className }: Sc
       height={layout.height}
       viewBox={`0 0 ${layout.width} ${layout.height}`}
       onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
       role="img"
       aria-label="Tab score"
     >
@@ -367,6 +451,9 @@ export function Score({ layout, cursor, playhead, onPointerDown, className }: Sc
           {system.staves.map((staff) => (
             <Staff key={staff.track.id} staff={staff} system={system} options={options} />
           ))}
+          {rulerSub !== undefined && (
+            <SystemRuler system={system} options={options} sub={rulerSub} />
+          )}
         </g>
       ))}
 

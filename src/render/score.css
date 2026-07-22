@@ -184,3 +184,28 @@
   stroke-width: 1.6;
   pointer-events: none;
 }
+
+/* Scrub ruler. The hit strip is invisible but carries the pointer cursor so the
+   whole band reads as clickable; ticks mark the snap grid. */
+.qtm-ruler-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.qtm-ruler-line {
+  stroke: var(--qtm-staff-line);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+  pointer-events: none;
+}
+
+.qtm-ruler-tick {
+  stroke: var(--qtm-staff-line);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+  pointer-events: none;
+}
+
+.qtm-ruler-tick--strong {
+  stroke: var(--qtm-barline);
+}

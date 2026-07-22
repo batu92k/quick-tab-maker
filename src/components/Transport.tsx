@@ -8,10 +8,27 @@
 
 import { useCallback, useRef, useState } from 'react';
 import * as C from '../editor/commands';
+import * as F from '../model/fraction';
+import type { Fraction } from '../model/fraction';
 import { songLengthInBars } from '../model/song';
 import { useSongStore } from '../store/songStore';
 import { usePlaybackStore } from '../store/playbackStore';
 import './transport.css';
+
+/** Snap grid choices, coarsest first. `null` is free positioning. */
+const SNAP_OPTIONS: readonly { readonly label: string; readonly value: Fraction | null }[] = [
+  { label: 'Off', value: null },
+  { label: '1/4', value: F.QUARTER },
+  { label: '1/8', value: F.EIGHTH },
+  { label: '1/16', value: F.SIXTEENTH },
+  { label: '1/32', value: F.THIRTY_SECOND },
+];
+
+function snapIndex(snap: Fraction | null): number {
+  return SNAP_OPTIONS.findIndex((o) =>
+    o.value === null ? snap === null : snap !== null && F.eq(o.value, snap),
+  );
+}
 
 /** Taps older than this belong to a previous attempt, not this one. */
 const TAP_TIMEOUT_MS = 2500;
@@ -31,6 +48,7 @@ export function Transport() {
   const metronome = usePlaybackStore((s) => s.metronome);
   const countInBars = usePlaybackStore((s) => s.countInBars);
   const loop = usePlaybackStore((s) => s.loop);
+  const snap = usePlaybackStore((s) => s.snap);
   const error = usePlaybackStore((s) => s.error);
 
   const taps = useRef<number[]>([]);
@@ -128,6 +146,21 @@ export function Transport() {
             <option value={0}>Off</option>
             <option value={1}>1 bar</option>
             <option value={2}>2 bars</option>
+          </select>
+        </label>
+        <label className="qtm-field" title="Grid the playhead snaps to when you click the ruler">
+          <span>Snap</span>
+          <select
+            value={snapIndex(snap)}
+            onChange={(e) =>
+              usePlaybackStore.getState().setSnap(SNAP_OPTIONS[Number(e.target.value)]!.value)
+            }
+          >
+            {SNAP_OPTIONS.map((o, i) => (
+              <option key={o.label} value={i}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </label>
       </div>

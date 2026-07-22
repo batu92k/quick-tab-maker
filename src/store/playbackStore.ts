@@ -11,6 +11,7 @@
  */
 
 import { create } from 'zustand';
+import { EIGHTH, type Fraction } from '../model/fraction';
 import type { Id } from '../model/types';
 import { SilentEngine, type AudioEngine } from '../audio/engine';
 import {
@@ -18,6 +19,8 @@ import {
   effectiveMixer,
   isAudible,
   positionAtTime,
+  secondsAt,
+  snapToGrid,
   songDuration,
   timeAtBar,
   type MusicalPosition,
@@ -46,6 +49,11 @@ export interface PlaybackState {
   metronome: boolean;
   countInBars: number;
   loop: LoopRegion | null;
+  /**
+   * Grid the playhead snaps to when scrubbed, or null for free positioning.
+   * Only ever the dyadic note values (1/4…1/32), so snapping stays exact.
+   */
+  snap: Fraction | null;
   /** True once the audio context has been unlocked by a user gesture. */
   ready: boolean;
   error: string | null;
@@ -55,10 +63,17 @@ export interface PlaybackState {
   pause: () => void;
   stop: () => void;
   seekToBar: (bar: number) => void;
+  /**
+   * Moves the playhead to a point in the score, applying the snap grid. Works
+   * stopped, paused or playing: stopped it just sets where the next play will
+   * begin, playing it seeks the running transport.
+   */
+  scrubTo: (bar: number, offset: number) => void;
 
   setMetronome: (on: boolean) => void;
   setCountInBars: (bars: number) => void;
   setLoop: (loop: LoopRegion | null) => void;
+  setSnap: (snap: Fraction | null) => void;
 
   /** Previews a single note, e.g. when the fretboard is clicked. */
   audition: (midi: number, kind: 'pitched' | 'percussive', trackId: Id) => void;
@@ -140,6 +155,7 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => {
     metronome: false,
     countInBars: 0,
     loop: null,
+    snap: EIGHTH,
     ready: false,
     error: null,
 
@@ -150,18 +166,21 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => {
       const active = await ensureEngine();
       set({ ready: active.unlocked });
 
-      const { metronome, countInBars, loop, status, positionSeconds } = get();
-      // Resuming from a pause keeps the count-in out of the way: it exists to
-      // start a take, not to interrupt one.
-      const resuming = status === 'paused' && positionSeconds > 0;
-      plan = buildPlan(song, { countInBars: resuming ? 0 : countInBars, loop });
+      const { metronome, countInBars, loop, positionSeconds } = get();
+      // Anywhere but the very top is a resume or a scrubbed start, and the
+      // count-in only leads into a take from the beginning — dropping it into
+      // the middle of one interrupts rather than counts in. So the count-in
+      // plays only from a standing start at zero.
+      const startSeconds = positionSeconds > 0 ? positionSeconds : 0;
+      const fromStart = startSeconds === 0;
+      plan = buildPlan(song, { countInBars: fromStart ? countInBars : 0, loop });
 
       await active.load(plan);
       active.setMetronomeEnabled(metronome);
 
       // Transport zero is the top of the count-in, so a fresh start is 0 and a
-      // resume is the song position shifted by however long the count-in was.
-      active.play(resuming ? positionSeconds + plan.songOffset : 0);
+      // resume or scrub is the song position shifted past the (now absent) one.
+      active.play(fromStart ? 0 : startSeconds + plan.songOffset);
       set({ status: 'playing' });
       startTicking();
     },
@@ -191,6 +210,20 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => {
       set({ positionSeconds: seconds, position: positionAtTime(song, seconds) });
     },
 
+    scrubTo(bar, offset) {
+      const song = useSongStore.getState().song;
+      if (!song) return;
+      const snap = get().snap;
+      const target = snap ? snapToGrid(song, bar, offset, snap) : { bar, offset };
+      const seconds = secondsAt(song, target.bar, target.offset);
+      // Only a running transport needs the seek; stopped or paused, setting the
+      // position is enough — play() reads it back as the start point, and the
+      // score draws the playhead there so the start is visible before pressing
+      // play.
+      if (get().status === 'playing') engine.seek(seconds + (plan?.songOffset ?? 0));
+      set({ positionSeconds: seconds, position: positionAtTime(song, seconds) });
+    },
+
     setMetronome(on) {
       set({ metronome: on });
       // Takes effect immediately, mid-playback included: the clicks are always
@@ -210,6 +243,10 @@ export const usePlaybackStore = create<PlaybackState>((set, get) => {
      */
     setLoop(loop) {
       set({ loop });
+    },
+
+    setSnap(snap) {
+      set({ snap });
     },
 
     audition(midi, kind, trackId) {
@@ -245,6 +282,7 @@ export function resetPlaybackForTesting(): void {
     metronome: false,
     countInBars: 0,
     loop: null,
+    snap: EIGHTH,
     ready: false,
     error: null,
   });

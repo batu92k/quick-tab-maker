@@ -18,6 +18,7 @@
  */
 
 import * as F from '../model/fraction';
+import type { Fraction } from '../model/fraction';
 import { songLengthInBars, tempoAt, timeSignatureAt } from '../model/song';
 import {
   isStringTrack,
@@ -95,6 +96,60 @@ export function timeAtBar(song: Song, bar: number): number {
   const times = barTimes(song);
   const clamped = Math.min(Math.max(bar, 0), times.length - 1);
   return times[clamped] ?? 0;
+}
+
+/**
+ * Time of an arbitrary offset into a bar, for scrubbing the playhead.
+ *
+ * Offset is whole notes and a float: it comes straight from a pointer landing
+ * between beats, exactly like a clock reading, so this is the same legitimate
+ * float-position case as the playhead itself. It seeks; it never touches the
+ * document, where positions stay exact.
+ */
+export function secondsAt(song: Song, bar: number, offset: number): number {
+  const bpm = tempoAt(song, bar);
+  // A whole note is four quarter-beats; bpm is quarter-note bpm.
+  return timeAtBar(song, bar) + (offset * 4 * 60) / bpm;
+}
+
+/**
+ * Capacity of a bar in whole notes, honouring a per-measure override the way
+ * the layout's shared grid does — off the first track, which carries the same
+ * signature every staff is laid out against.
+ */
+function barCapacityWhole(song: Song, bar: number): number {
+  const first = song.tracks[0];
+  const sig = first?.measures[bar]?.timeSig ?? timeSignatureAt(song, bar);
+  return F.toNumber(F.measureDuration(sig.num, sig.den));
+}
+
+/**
+ * Snaps a continuous bar position to the nearest subdivision line, the way a
+ * DAW's grid does.
+ *
+ * The offered subdivisions are all dyadic (1/4, 1/8, 1/16, 1/32), so the snapped
+ * value is exact in a float and nothing drifts — this stays a display/seek
+ * position, never a stored one. A snap that lands on the closing barline rolls
+ * forward to the next bar's downbeat when there is one, so the last grid line of
+ * a bar and the first of the next are not the same click.
+ */
+export function snapToGrid(
+  song: Song,
+  bar: number,
+  offset: number,
+  subdivision: Fraction,
+): MusicalPosition {
+  const sub = F.toNumber(subdivision);
+  const cap = barCapacityWhole(song, bar);
+  const snapped = Math.round(offset / sub) * sub;
+
+  if (snapped >= cap - 1e-9) {
+    if (bar + 1 < songLengthInBars(song)) return { bar: bar + 1, offset: 0 };
+    // Final bar: clamp to the last grid line inside it rather than the barline,
+    // which is the end of the song and has nothing to sit the playhead on.
+    return { bar, offset: Math.max(0, Math.ceil(cap / sub - 1) * sub) };
+  }
+  return { bar, offset: Math.max(0, snapped) };
 }
 
 /* -------------------------------------------------------------------------- */

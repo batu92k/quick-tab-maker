@@ -30,6 +30,8 @@ function App() {
   const openSong = useSongStore((s) => s.openSong);
   const autosaveStatus = useSongStore((s) => s.autosaveStatus);
   const playhead = usePlaybackStore((s) => s.position);
+  const snap = usePlaybackStore((s) => s.snap);
+  const scrubTo = usePlaybackStore((s) => s.scrubTo);
 
   const [theme, setTheme] = useState<Theme>('light');
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -97,7 +99,14 @@ function App() {
 
       <main className="qtm-main">
         {song && (
-          <ScoreView song={song} cursor={cursor} playhead={playhead} onHit={handleHit} />
+          <ScoreView
+            song={song}
+            cursor={cursor}
+            playhead={playhead}
+            snap={snap}
+            onHit={handleHit}
+            onScrub={scrubTo}
+          />
         )}
         <InstrumentPanel />
         <p className="qtm-hint">
