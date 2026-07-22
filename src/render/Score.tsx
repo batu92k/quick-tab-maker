@@ -359,16 +359,28 @@ const SystemRuler = memo(function SystemRuler({ system, options, sub }: SystemRu
   if (!staff || sub <= 0) return null;
   const band = rulerBand(system.y, options);
 
-  const ticks: { x: number; strong: boolean }[] = [];
+  // The actual note onsets, across every staff, taken from the shared grid the
+  // playhead follows. These are the snap targets a click magnetises to, so each
+  // gets a tick of its own — a triplet never lands on a dyadic subdivision, so
+  // without these a note sits between ticks and reads as misaligned.
+  const onsetXs: number[] = [];
+  const gridTicks: { x: number; strong: boolean }[] = [];
   for (const measure of staff.measures) {
-    const cap = measure.columns[measure.columns.length - 1]?.at ?? 0;
+    const columns = measure.columns;
+    const cap = columns[columns.length - 1]?.at ?? 0;
+    for (const column of columns) {
+      if (column.at < cap - 1e-9) onsetXs.push(column.x);
+    }
     for (let k = 0; k * sub < cap - 1e-9; k++) {
       const at = k * sub;
       // A tick on a quarter-note boundary reads as a beat and is drawn taller.
       const strong = Math.abs(at / 0.25 - Math.round(at / 0.25)) < 1e-9;
-      ticks.push({ x: offsetToX(measure, at), strong });
+      gridTicks.push({ x: offsetToX(measure, at), strong });
     }
   }
+  // A subdivision that already sits under a note is dropped so the two do not
+  // stack into a thick smudge.
+  const onlyGrid = gridTicks.filter((t) => !onsetXs.some((o) => Math.abs(o - t.x) < 1.5));
 
   return (
     <g className="qtm-ruler">
@@ -386,14 +398,24 @@ const SystemRuler = memo(function SystemRuler({ system, options, sub }: SystemRu
         x2={system.contentRight}
         y2={band.line}
       />
-      {ticks.map((t, i) => (
+      {onlyGrid.map((t, i) => (
         <line
-          key={i}
+          key={`g${i}`}
           className={t.strong ? 'qtm-ruler-tick qtm-ruler-tick--strong' : 'qtm-ruler-tick'}
           x1={t.x}
           y1={band.line}
           x2={t.x}
           y2={band.line - (t.strong ? 7 : 4)}
+        />
+      ))}
+      {onsetXs.map((x, i) => (
+        <line
+          key={`o${i}`}
+          className="qtm-ruler-tick qtm-ruler-tick--onset"
+          x1={x}
+          y1={band.line}
+          x2={x}
+          y2={band.line - 9}
         />
       ))}
     </g>
