@@ -359,17 +359,19 @@ const SystemRuler = memo(function SystemRuler({ system, options, sub }: SystemRu
   if (!staff || sub <= 0) return null;
   const band = rulerBand(system.y, options);
 
-  // The actual note onsets, across every staff, taken from the shared grid the
-  // playhead follows. These are the snap targets a click magnetises to, so each
-  // gets a tick of its own — a triplet never lands on a dyadic subdivision, so
-  // without these a note sits between ticks and reads as misaligned.
-  const onsetXs: number[] = [];
+  // Every subdivision line, and every note onset the subdivision grid does not
+  // already land on — the shared grid the playhead follows. A triplet sits at
+  // 1/12 and no dyadic subdivision reaches it, so without the extra onset ticks
+  // a triplet note would have no tick and read as misaligned. Onsets that the
+  // grid already covers (a dyadic note) are left to their subdivision tick, so
+  // the two never stack.
   const gridTicks: { x: number; strong: boolean }[] = [];
+  const allOnsets: number[] = [];
   for (const measure of staff.measures) {
     const columns = measure.columns;
     const cap = columns[columns.length - 1]?.at ?? 0;
     for (const column of columns) {
-      if (column.at < cap - 1e-9) onsetXs.push(column.x);
+      if (column.at < cap - 1e-9) allOnsets.push(column.x);
     }
     for (let k = 0; k * sub < cap - 1e-9; k++) {
       const at = k * sub;
@@ -378,9 +380,7 @@ const SystemRuler = memo(function SystemRuler({ system, options, sub }: SystemRu
       gridTicks.push({ x: offsetToX(measure, at), strong });
     }
   }
-  // A subdivision that already sits under a note is dropped so the two do not
-  // stack into a thick smudge.
-  const onlyGrid = gridTicks.filter((t) => !onsetXs.some((o) => Math.abs(o - t.x) < 1.5));
+  const onsetXs = allOnsets.filter((o) => !gridTicks.some((t) => Math.abs(t.x - o) < 1.5));
 
   return (
     <g className="qtm-ruler">
@@ -398,7 +398,7 @@ const SystemRuler = memo(function SystemRuler({ system, options, sub }: SystemRu
         x2={system.contentRight}
         y2={band.line}
       />
-      {onlyGrid.map((t, i) => (
+      {gridTicks.map((t, i) => (
         <line
           key={`g${i}`}
           className={t.strong ? 'qtm-ruler-tick qtm-ruler-tick--strong' : 'qtm-ruler-tick'}
