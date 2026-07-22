@@ -75,11 +75,11 @@ export const DEFAULT_LAYOUT_OPTIONS: LayoutOptions = {
   // names, the track name and bar numbers, which all stack above the top staff
   // line and would otherwise be clipped. Later systems get the same stack from
   // `systemGap`.
-  marginTop: 54,
+  marginTop: 60,
   marginX: 16,
   lineSpacing: 14,
   trackGap: 36,
-  systemGap: 54,
+  systemGap: 60,
   labelWidth: 44,
   minMeasureWidth: 90,
   beatBaseWidth: 22,
@@ -200,8 +200,14 @@ export interface Layout {
   readonly options: LayoutOptions;
 }
 
-/** How far above the staff the annotation lane sits, in line-spacings. */
-const ANNOTATION_LANE = 2.7;
+/**
+ * How far above the staff each thing in the top stack sits, in line-spacings.
+ * From the staff up: bar numbers (0.5), chord names (1.2), the scrub ruler
+ * (2.1), then the annotation lane — each clear of the one below it, so a chord
+ * never rides into the ruler line and a text note never overlaps a tick.
+ */
+const RULER_LANE = 2.1;
+const ANNOTATION_LANE = 3.5;
 
 /* -------------------------------------------------------------------------- */
 /* Measurement                                                                */
@@ -783,7 +789,7 @@ export interface RulerBand {
  * region, so it never swallows a click meant for the top string.
  */
 export function rulerBand(systemY: number, o: LayoutOptions): RulerBand {
-  const line = systemY - o.lineSpacing * 1.6;
+  const line = systemY - o.lineSpacing * RULER_LANE;
   return { line, top: line - 9, bottom: systemY - o.lineSpacing * 0.55 };
 }
 
