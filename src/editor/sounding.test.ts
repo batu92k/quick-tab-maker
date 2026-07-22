@@ -202,3 +202,39 @@ describe('annotation commands', () => {
     expect(store().song!.annotations).toHaveLength(0);
   });
 });
+
+describe('insert note between existing notes', () => {
+  const at = (track: Track, beatIndex: number): void =>
+    store().setCursor({ trackId: track.id, measureIndex: 0, beatIndex, line: 0 });
+
+  it('drops a shorter slot between two notes and shifts the rest right', () => {
+    // The reported case: 16th notes, wanting a 32nd in between.
+    const track = open([createStringTrack('guitar', { measureCount: 1 })]);
+    store().setEntryDuration(F.SIXTEENTH);
+    at(track, 0);
+    C.applyNoteInput(fretInput(0, 5));
+    at(track, 1);
+    C.applyNoteInput(fretInput(0, 7));
+
+    store().setEntryDuration(F.THIRTY_SECOND);
+    at(track, 1); // on the second 16th
+    expect(C.insertBeatAtCursor()).toBe(true);
+    C.applyNoteInput(fretInput(0, 9)); // fill the inserted rest
+
+    const beats = guitar().measures[0]!.beats;
+    expect(beats.map((b) => b.notes[0]?.fret)).toEqual([5, 9, 7]);
+    expect(beats.map((b) => F.toString(b.duration))).toEqual(['1/16', '1/32', '1/16']);
+  });
+
+  it('refuses to insert into a full bar', () => {
+    const track = open([createStringTrack('guitar', { measureCount: 1 })]);
+    store().setEntryDuration(F.QUARTER);
+    for (let i = 0; i < 4; i++) {
+      at(track, i);
+      C.applyNoteInput(fretInput(0, i));
+    }
+    at(track, 2);
+    expect(C.insertBeatAtCursor()).toBe(false);
+    expect(guitar().measures[0]!.beats).toHaveLength(4);
+  });
+});

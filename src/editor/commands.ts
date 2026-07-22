@@ -295,6 +295,43 @@ export function deleteBeatAtCursor(): void {
   });
 }
 
+/**
+ * Inserts a rest of the current entry duration at the cursor, shifting the notes
+ * after it right, and leaves the cursor on it to type into.
+ *
+ * This is how a note goes *between* two existing ones. The note-value buttons
+ * otherwise only size a note added at the end of a bar: typing on an existing
+ * beat edits that beat at its own duration rather than making a new, shorter one
+ * beside it. Inserting adds that duration to the bar's used time, so it is
+ * refused when the bar is full — the same capacity rule as appending.
+ */
+export function insertBeatAtCursor(): boolean {
+  const { cursor, entryDuration } = store();
+  const track = currentTrack();
+  if (!cursor || !track) return false;
+
+  let applied = false;
+  store().edit('Insert note', (draft) => {
+    applied = E.insertBeat(
+      draft,
+      cursor.trackId,
+      cursor.measureIndex,
+      cursor.beatIndex,
+      entryDuration,
+    );
+  });
+  if (applied) {
+    // The cursor already sits at beatIndex, which is now the inserted rest, so
+    // the next fret typed drops straight into it — no cursor move needed.
+    store().setNotice(null);
+  } else {
+    store().setNotice(
+      `No room to insert in bar ${cursor.measureIndex + 1}. Shorten a note, or add a bar.`,
+    );
+  }
+  return applied;
+}
+
 export function toggleTechniqueAtCursor(technique: Parameters<typeof E.toggleTechnique>[5]): void {
   const { cursor } = store();
   const track = currentTrack();

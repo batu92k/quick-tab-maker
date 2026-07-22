@@ -108,6 +108,17 @@ export function EditorToolbar() {
         >
           Apply to note
         </button>
+        {/* Inserts a slot of this value between existing notes — the only way to
+            add a shorter note between two longer ones, since typing on a note
+            edits it in place. */}
+        <button
+          type="button"
+          className="qtm-tool qtm-tool--wide"
+          title="Insert a note of this value before the cursor (I)"
+          onClick={() => C.insertBeatAtCursor()}
+        >
+          Insert note
+        </button>
       </div>
 
       {isFretted && (

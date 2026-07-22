@@ -51,6 +51,12 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   { key: 'backspace', label: 'Delete note', group: 'Notes', run: () => void C.deleteAtCursor() },
   { key: 'delete', shift: true, label: 'Delete whole beat', group: 'Notes', run: C.deleteBeatAtCursor },
   { key: ' ', label: 'Toggle drum hit / clear beat', group: 'Notes', run: toggleOrClear },
+  {
+    key: 'i',
+    label: 'Insert a note of the current value before the cursor',
+    group: 'Notes',
+    run: () => void C.insertBeatAtCursor(),
+  },
 
   /* Rhythm */
   { key: '[', label: 'Shorter note value', group: 'Rhythm', run: C.shortenDuration },
