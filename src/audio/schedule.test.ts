@@ -361,3 +361,39 @@ describe('snapToGrid', () => {
     expect(snapToGrid(song, 0, -0.1, F.EIGHTH)).toEqual({ bar: 0, offset: 0 });
   });
 });
+
+describe('snapToGrid note magnetism', () => {
+  it('snaps to a note onset when near one, even off the dyadic grid', () => {
+    // Three eighth-note triplets: onsets at 0, 1/12, 1/6 — none on a 1/8 line.
+    // A grid-only snap could never land the playhead on any of them.
+    const trip = F.tuplet(F.EIGHTH, 3, 2); // 1/12
+    const song = songOf([
+      guitarWith([
+        [
+          { d: trip, notes: [note(0, 0)] },
+          { d: trip, notes: [note(0, 2)] },
+          { d: trip, notes: [note(0, 3)] },
+        ],
+      ]),
+    ]);
+    const snapped = snapToGrid(song, 0, 1 / 12 + 0.01, F.EIGHTH);
+    expect(snapped.bar).toBe(0);
+    expect(snapped.offset).toBeCloseTo(1 / 12, 5);
+  });
+
+  it('still snaps to a grid line out in open space', () => {
+    const song = songOf([guitarWith([[{ d: F.QUARTER, notes: [note(0, 0)] }]])]);
+    // Well past the single quarter: nothing to magnetise to, so the 1/8 line wins.
+    expect(snapToGrid(song, 0, 0.62, F.EIGHTH).offset).toBeCloseTo(0.625, 5);
+  });
+
+  it('prefers the closer of a note and a grid line', () => {
+    // A note at a quarter (0.25) and 1/8 lines around it. A click at 0.24 is
+    // nearest the note; at 0.13 it is nearest the 1/8 line.
+    const song = songOf([
+      guitarWith([[{ d: F.QUARTER, notes: [note(0, 5)] }, { d: F.QUARTER, notes: [note(0, 5)] }]]),
+    ]);
+    expect(snapToGrid(song, 0, 0.24, F.EIGHTH).offset).toBeCloseTo(0.25, 5);
+    expect(snapToGrid(song, 0, 0.13, F.EIGHTH).offset).toBeCloseTo(0.125, 5);
+  });
+});

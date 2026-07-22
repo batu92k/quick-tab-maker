@@ -123,15 +123,31 @@ function barCapacityWhole(song: Song, bar: number): number {
   return F.toNumber(F.measureDuration(sig.num, sig.den));
 }
 
+/** Every distinct note onset in a bar, across all tracks, in whole notes. */
+function barOnsets(song: Song, bar: number): number[] {
+  const set = new Set<number>();
+  for (const track of song.tracks) {
+    for (const beat of track.measures[bar]?.beats ?? []) {
+      set.add(F.toNumber(beat.start));
+    }
+  }
+  return [...set];
+}
+
 /**
- * Snaps a continuous bar position to the nearest subdivision line, the way a
- * DAW's grid does.
+ * Snaps a continuous bar position to the nearest snap point.
  *
- * The offered subdivisions are all dyadic (1/4, 1/8, 1/16, 1/32), so the snapped
- * value is exact in a float and nothing drifts — this stays a display/seek
- * position, never a stored one. A snap that lands on the closing barline rolls
- * forward to the next bar's downbeat when there is one, so the last grid line of
- * a bar and the first of the next are not the same click.
+ * The snap points are the subdivision grid lines (1/4…1/32, all dyadic, so the
+ * value stays exact) *and* the actual note onsets in the bar. Including the
+ * onsets is what makes the playhead land on a note when you scrub near one:
+ * a grid line rarely falls exactly on a note, and a triplet never falls on a
+ * dyadic line at all, so a grid-only snap would leave the playhead beside the
+ * very note you were aiming for. With the onsets in, the nearest point wins —
+ * a note when close to one, a grid line out in open space.
+ *
+ * The closing barline is a snap point too, and landing on it rolls forward to
+ * the next bar's downbeat when there is one, so the last line of a bar and the
+ * first of the next are not the same click.
  */
 export function snapToGrid(
   song: Song,
@@ -141,15 +157,30 @@ export function snapToGrid(
 ): MusicalPosition {
   const sub = F.toNumber(subdivision);
   const cap = barCapacityWhole(song, bar);
-  const snapped = Math.round(offset / sub) * sub;
 
-  if (snapped >= cap - 1e-9) {
-    if (bar + 1 < songLengthInBars(song)) return { bar: bar + 1, offset: 0 };
-    // Final bar: clamp to the last grid line inside it rather than the barline,
-    // which is the end of the song and has nothing to sit the playhead on.
-    return { bar, offset: Math.max(0, Math.ceil(cap / sub - 1) * sub) };
+  const candidates: number[] = [cap]; // the barline is always a target
+  for (let k = 0; k * sub < cap - 1e-9; k++) candidates.push(k * sub);
+  for (const onset of barOnsets(song, bar)) if (onset < cap - 1e-9) candidates.push(onset);
+
+  let best = 0;
+  let bestDist = Infinity;
+  for (const candidate of candidates) {
+    const dist = Math.abs(candidate - offset);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = candidate;
+    }
   }
-  return { bar, offset: Math.max(0, snapped) };
+
+  if (best >= cap - 1e-9) {
+    if (bar + 1 < songLengthInBars(song)) return { bar: bar + 1, offset: 0 };
+    // Final bar: the barline is the end of the song with nothing to sit on, so
+    // fall back to the nearest snap point strictly inside the bar.
+    best = candidates
+      .filter((c) => c < cap - 1e-9)
+      .reduce((a, c) => (Math.abs(c - offset) < Math.abs(a - offset) ? c : a), 0);
+  }
+  return { bar, offset: Math.max(0, best) };
 }
 
 /* -------------------------------------------------------------------------- */
