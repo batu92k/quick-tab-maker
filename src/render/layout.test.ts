@@ -95,9 +95,10 @@ describe('measure widths', () => {
     expect(hasRoomToAppend(song, track, 0)).toBe(false);
     expect(hasRoomToAppend(song, track, 1)).toBe(true);
 
-    // The full bar is exactly its content plus padding — no trailing slot.
+    // The full bar is exactly its content plus padding — no trailing slot. With
+    // time-based spacing a full 4/4 bar is one whole note of time wide.
     const full = naturalMeasureWidth(song, 0, DEFAULT_LAYOUT_OPTIONS);
-    const contentWidth = 8 * (DEFAULT_LAYOUT_OPTIONS.beatBaseWidth + DEFAULT_LAYOUT_OPTIONS.beatDurationWidth / 8);
+    const contentWidth = DEFAULT_LAYOUT_OPTIONS.beatDurationWidth;
     expect(full).toBeCloseTo(contentWidth + DEFAULT_LAYOUT_OPTIONS.measurePadding * 2);
   });
 
@@ -127,15 +128,17 @@ describe('measure widths', () => {
     expect(withRoom).toBeGreaterThan(beatOnly + DEFAULT_LAYOUT_OPTIONS.measurePadding * 2);
   });
 
-  it('gives a denser bar more room than a sparse one', () => {
+  it('spaces bars by time, widening only one dense enough to hit the floor', () => {
     const song = produce(guitarOnly(), (d) => {
       const id = d.tracks[0]!.id;
-      E.setNote(d, id, 0, 0, 0, 1, F.QUARTER); // one quarter
-      for (let i = 0; i < 8; i++) E.setNote(d, id, 1, i, 0, i, F.EIGHTH); // eight eighths
+      for (let i = 0; i < 4; i++) E.setNote(d, id, 0, i, 0, i, F.QUARTER); // full bar of quarters
+      for (let i = 0; i < 16; i++) E.setNote(d, id, 1, i, 0, i % 12, F.SIXTEENTH); // full bar of 16ths
     });
-    const sparse = naturalMeasureWidth(song, 0, DEFAULT_LAYOUT_OPTIONS);
-    const dense = naturalMeasureWidth(song, 1, DEFAULT_LAYOUT_OPTIONS);
-    expect(dense).toBeGreaterThan(sparse);
+    const quarters = naturalMeasureWidth(song, 0, DEFAULT_LAYOUT_OPTIONS);
+    const sixteenths = naturalMeasureWidth(song, 1, DEFAULT_LAYOUT_OPTIONS);
+    // Same musical length: the quarters sit at the plain time width, but the
+    // sixteenths are dense enough to hit the per-onset floor, so that bar grows.
+    expect(sixteenths).toBeGreaterThan(quarters);
   });
 });
 
@@ -231,7 +234,9 @@ describe('layoutSong', () => {
     // short song — where the only system is also the last — never stretched and
     // sat hugging the left edge of the page.
     const song = createSong({ tracks: [createStringTrack('guitar', { measureCount: 4 })] });
-    const layout = layoutSong(song, { width: 1200 });
+    // Time-based bars are wider (a bar is a whole note of time), so a wider
+    // page is needed for four to share one system.
+    const layout = layoutSong(song, { width: 2000 });
 
     expect(layout.systems).toHaveLength(1);
     const system = layout.systems[0]!;
