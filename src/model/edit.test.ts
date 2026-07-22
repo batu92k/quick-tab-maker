@@ -2,7 +2,13 @@ import { produce } from 'immer';
 import { describe, expect, it } from 'vitest';
 import * as E from './edit';
 import * as F from './fraction';
-import { createDrumTrack, createSong, createStringTrack, measureFilled } from './song';
+import {
+  createDrumTrack,
+  createSong,
+  createStringTrack,
+  measureFilled,
+  snapPositionInMeasure,
+} from './song';
 import { isStringTrack, type Measure, type Note, type Song, type StringTrack } from './types';
 
 /** Applies a draft mutation, mirroring how the store calls these operations. */
@@ -419,5 +425,61 @@ describe('annotations', () => {
     });
     expect(song.annotations.map((a) => a.id)).toEqual(['kept']);
     expect(song.annotations[0]!.bar).toBe(1);
+  });
+});
+
+describe('insertNoteAt', () => {
+  it('splits a quarter into two eighths — the full-bar between-notes case', () => {
+    const song = apply(guitarSong(), (d) => {
+      const id = d.tracks[0]!.id;
+      for (let i = 0; i < 4; i++) E.setNote(d, id, 0, i, 0, i, Q); // full bar of quarters
+      // Click at 1/8 (between quarter 1 and 2), add an 8th on fret 9.
+      expect(E.insertNoteAt(d, id, 0, F.EIGHTH, 0, 9, F.EIGHTH)).toBe(true);
+    });
+    const beats = measureOf(song).beats;
+    expect(beats.map((b) => F.toString(b.duration))).toEqual(['1/8', '1/8', '1/4', '1/4', '1/4']);
+    expect(beats.map((b) => b.notes[0]?.fret)).toEqual([0, 9, 1, 2, 3]);
+    expect(F.toString(measureFilled(measureOf(song)))).toBe('1'); // still exactly one bar
+  });
+
+  it('leaves an interior rest when the note is shorter than the room in the split beat', () => {
+    const song = apply(guitarSong(), (d) => {
+      const id = d.tracks[0]!.id;
+      E.setNote(d, id, 0, 0, 0, 5, Q);
+      E.setNote(d, id, 0, 1, 0, 6, Q); // a second quarter so the rest is not trailing
+      // A 16th at 1/8: quarter1 -> [0,1/8] note, 16th note, 16th rest, then quarter2.
+      expect(E.insertNoteAt(d, id, 0, F.EIGHTH, 0, 7, F.SIXTEENTH)).toBe(true);
+    });
+    const beats = measureOf(song).beats;
+    expect(beats.map((b) => F.toString(b.duration))).toEqual(['1/8', '1/16', '1/16', '1/4']);
+    expect(beats.map((b) => b.notes.length)).toEqual([1, 1, 0, 1]);
+  });
+
+  it('refuses a position on an onset or past the last note', () => {
+    apply(guitarSong(), (d) => {
+      const id = d.tracks[0]!.id;
+      E.setNote(d, id, 0, 0, 0, 5, Q); // fills [0, 1/4]
+      expect(E.insertNoteAt(d, id, 0, F.ZERO, 0, 7, F.EIGHTH)).toBe(false); // onset
+      expect(E.insertNoteAt(d, id, 0, F.QUARTER, 0, 7, F.EIGHTH)).toBe(false); // empty tail
+    });
+  });
+});
+
+describe('snapPositionInMeasure', () => {
+  const cap = F.WHOLE;
+
+  it('snaps to the nearest subdivision line in open space', () => {
+    expect(snapPositionInMeasure([], cap, F.EIGHTH, 0.13)).toEqual(F.EIGHTH);
+    expect(snapPositionInMeasure([], cap, F.EIGHTH, 0.3)).toEqual(F.QUARTER);
+  });
+
+  it('snaps to a note onset when nearer than a grid line, even off the grid', () => {
+    const trip = F.tuplet(F.EIGHTH, 3, 2); // 1/12, on no 1/8 line
+    const snapped = snapPositionInMeasure([{ start: trip }], cap, F.EIGHTH, 1 / 12 + 0.005);
+    expect(snapped).toEqual(trip);
+  });
+
+  it('snaps a click past the last line to the barline (the append point)', () => {
+    expect(snapPositionInMeasure([], cap, F.QUARTER, 0.98)).toEqual(F.WHOLE);
   });
 });

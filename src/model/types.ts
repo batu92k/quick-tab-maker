@@ -255,4 +255,11 @@ export interface Cursor {
   readonly beatIndex: number;
   /** String index for string tracks, or drum-piece row index for drum tracks. */
   readonly line: number;
+  /**
+   * When set, the cursor sits *between* notes: note entry inserts a new note at
+   * this position in the bar, splitting whatever beat it lands inside, rather
+   * than editing `beatIndex`. Set by clicking the sheet on a grid line between
+   * two notes; cleared by arrow movement and once a note is placed.
+   */
+  readonly insertAt?: Fraction;
 }

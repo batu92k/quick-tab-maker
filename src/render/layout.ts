@@ -617,6 +617,25 @@ export interface HitResult {
   /** Index of the beat hit, or the append slot past the last beat. */
   readonly beatIndex: number;
   readonly line: number;
+  /**
+   * Set when the click landed on a grid line *between* two notes: entry inserts
+   * a new note at this bar position rather than editing `beatIndex`.
+   */
+  readonly insertAt?: Fraction;
+}
+
+/** The laid-out measure for a track and bar, for callers that need its geometry. */
+export function measureAt(
+  layout: Layout,
+  trackId: string,
+  measureIndex: number,
+): LaidOutMeasure | undefined {
+  for (const system of layout.systems) {
+    const staff = system.staves.find((s) => s.track.id === trackId);
+    const measure = staff?.measures.find((m) => m.measureIndex === measureIndex);
+    if (measure) return measure;
+  }
+  return undefined;
 }
 
 /**
@@ -672,12 +691,18 @@ export function cursorPosition(
   measureIndex: number,
   beatIndex: number,
   line: number,
+  insertAt?: Fraction,
 ): { x: number; y: number } | undefined {
   for (const system of layout.systems) {
     for (const staff of system.staves) {
       if (staff.track.id !== trackId) continue;
       const measure = staff.measures.find((m) => m.measureIndex === measureIndex);
       if (!measure) continue;
+      // An insert cursor sits between beats, so it is drawn at its grid position
+      // rather than on any beat's column.
+      if (insertAt !== undefined) {
+        return { x: offsetToX(measure, F.toNumber(insertAt)), y: staff.y + line * layout.options.lineSpacing };
+      }
       const beat = measure.beats[beatIndex];
       const x = beat ? beat.x : measure.appendX;
       return { x, y: staff.y + line * layout.options.lineSpacing };
@@ -731,7 +756,7 @@ export function offsetToX(measure: LaidOutMeasure, offset: number): number {
  * between onsets, matching the interpolation the playhead draws with, so the
  * place a click lands and the place the line then sits are the same.
  */
-function offsetAtX(measure: LaidOutMeasure, x: number): number {
+export function offsetAtX(measure: LaidOutMeasure, x: number): number {
   const columns = measure.columns;
   const first = columns[0];
   if (!first) return 0;

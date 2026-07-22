@@ -15,12 +15,15 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
-import type { Cursor, Song } from '../model/types';
+import { measureCapacity, snapPositionInMeasure } from '../model/song';
+import { isStringTrack, type Cursor, type Song } from '../model/types';
 import { Score } from './Score';
 import {
   cursorPosition,
   hitTest,
   layoutSong,
+  measureAt,
+  offsetAtX,
   playheadPosition,
   positionAtX,
   type HitResult,
@@ -98,6 +101,7 @@ export function ScoreView({
       cursor.measureIndex,
       cursor.beatIndex,
       cursor.line,
+      cursor.insertAt,
     );
   }, [layout, cursor]);
 
@@ -128,6 +132,34 @@ export function ScoreView({
     [layout, onScrub],
   );
 
+  /**
+   * Turns a raw staff hit into an edit position. On a fretted staff with a snap
+   * grid, the click is snapped to the grid (and to note onsets): landing on a
+   * note edits it, past the last note appends, and a grid line between two notes
+   * becomes an insert position, so a shorter note can be placed between longer
+   * ones just by clicking. Drums and snap-off keep the plain beat under the click.
+   */
+  const resolveHit = useCallback(
+    (hit: HitResult, x: number): HitResult => {
+      if (!snap) return hit;
+      const track = song.tracks.find((t) => t.id === hit.trackId);
+      if (!track || !isStringTrack(track)) return hit;
+      const measure = measureAt(layout, hit.trackId, hit.measureIndex);
+      if (!measure) return hit;
+
+      const rawOffset = offsetAtX(measure, x);
+      const capacity = measureCapacity(song, track, hit.measureIndex);
+      const beats = measure.measure.beats;
+      const snapped = snapPositionInMeasure(beats, capacity, snap, rawOffset);
+
+      const onset = beats.findIndex((b) => F.eq(b.start, snapped));
+      if (onset >= 0) return { ...hit, beatIndex: onset };
+      if (F.gte(snapped, capacity)) return { ...hit, beatIndex: beats.length };
+      return { ...hit, beatIndex: beats.length, insertAt: snapped };
+    },
+    [layout, snap, song],
+  );
+
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {
       // A click that lands on the ruler scrubs and starts a drag; anything else
@@ -140,9 +172,9 @@ export function ScoreView({
       if (!onHit) return;
       const { x, y } = localPoint(event);
       const hit = hitTest(layout, x, y);
-      if (hit) onHit(hit);
+      if (hit) onHit(resolveHit(hit, x));
     },
-    [layout, onHit, scrubAt],
+    [layout, onHit, scrubAt, resolveHit],
   );
 
   const handlePointerMove = useCallback(

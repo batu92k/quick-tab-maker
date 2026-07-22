@@ -12,7 +12,7 @@ import * as E from '../model/edit';
 import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
 import { newAnnotationId } from '../model/ids';
-import { measureCapacity, measureFilled, timeSignatureAt } from '../model/song';
+import { beatIndexAtStart, measureCapacity, measureFilled, timeSignatureAt } from '../model/song';
 import {
   isDrumTrack,
   isStringTrack,
@@ -151,6 +151,40 @@ export function setFretAtCursor(fret: number): boolean {
   }
 
   const stringIndex = stringForLine(track, cursor.line);
+
+  // An insert cursor places a note *between* existing ones by splitting the beat
+  // it lands in. Once a note sits at that position — the note this same cursor
+  // just placed — retyping edits it instead of splitting again, which is also
+  // what makes two-digit fret entry work: the second digit undoes the first and
+  // re-runs here against a bar where the position is empty once more.
+  if (cursor.insertAt !== undefined) {
+    const position = cursor.insertAt;
+    const measure = track.measures[cursor.measureIndex];
+    const existing = measure ? beatIndexAtStart(measure, position) : -1;
+
+    let applied = false;
+    store().edit(`Fret ${fret}`, (draft) => {
+      applied =
+        existing >= 0
+          ? E.setNote(draft, cursor.trackId, cursor.measureIndex, existing, stringIndex, fret, entryDuration)
+          : E.insertNoteAt(draft, cursor.trackId, cursor.measureIndex, position, stringIndex, fret, entryDuration);
+    });
+    if (applied) {
+      store().setNotice(null);
+      // Point beatIndex at the note now at the insert position, for the panel,
+      // but keep insertAt so a two-digit fret can undo and re-insert.
+      const next = currentTrack();
+      const at =
+        next && isStringTrack(next) && next.measures[cursor.measureIndex]
+          ? beatIndexAtStart(next.measures[cursor.measureIndex]!, position)
+          : -1;
+      if (at >= 0) store().setCursor({ ...cursor, beatIndex: at });
+    } else {
+      explainRefusedEntry(track, cursor.measureIndex);
+    }
+    return applied;
+  }
+
   let applied = false;
   store().edit(`Fret ${fret}`, (draft) => {
     applied = E.setNote(
@@ -295,42 +329,6 @@ export function deleteBeatAtCursor(): void {
   });
 }
 
-/**
- * Inserts a rest of the current entry duration at the cursor, shifting the notes
- * after it right, and leaves the cursor on it to type into.
- *
- * This is how a note goes *between* two existing ones. The note-value buttons
- * otherwise only size a note added at the end of a bar: typing on an existing
- * beat edits that beat at its own duration rather than making a new, shorter one
- * beside it. Inserting adds that duration to the bar's used time, so it is
- * refused when the bar is full — the same capacity rule as appending.
- */
-export function insertBeatAtCursor(): boolean {
-  const { cursor, entryDuration } = store();
-  const track = currentTrack();
-  if (!cursor || !track) return false;
-
-  let applied = false;
-  store().edit('Insert note', (draft) => {
-    applied = E.insertBeat(
-      draft,
-      cursor.trackId,
-      cursor.measureIndex,
-      cursor.beatIndex,
-      entryDuration,
-    );
-  });
-  if (applied) {
-    // The cursor already sits at beatIndex, which is now the inserted rest, so
-    // the next fret typed drops straight into it — no cursor move needed.
-    store().setNotice(null);
-  } else {
-    store().setNotice(
-      `No room to insert in bar ${cursor.measureIndex + 1}. Shorten a note, or add a bar.`,
-    );
-  }
-  return applied;
-}
 
 export function toggleTechniqueAtCursor(technique: Parameters<typeof E.toggleTechnique>[5]): void {
   const { cursor } = store();
@@ -539,7 +537,14 @@ export function stepRight(): void {
   const lastSlot = measure ? measure.beats.length : 0;
 
   if (cursor.beatIndex >= lastSlot && cursor.measureIndex < track.measures.length - 1) {
-    store().setCursor({ ...cursor, measureIndex: cursor.measureIndex + 1, beatIndex: 0 });
+    // Explicit fields, not a spread: moving off an insert cursor must drop its
+    // between-notes position so the next note goes where the cursor now is.
+    store().setCursor({
+      trackId: cursor.trackId,
+      measureIndex: cursor.measureIndex + 1,
+      beatIndex: 0,
+      line: cursor.line,
+    });
     return;
   }
   store().moveCursor({ beat: 1 });
@@ -554,9 +559,10 @@ export function stepLeft(): void {
   if (cursor.beatIndex === 0 && cursor.measureIndex > 0) {
     const previous = track.measures[cursor.measureIndex - 1];
     store().setCursor({
-      ...cursor,
+      trackId: cursor.trackId,
       measureIndex: cursor.measureIndex - 1,
       beatIndex: previous ? previous.beats.length : 0,
+      line: cursor.line,
     });
     return;
   }
@@ -568,7 +574,14 @@ export const stepDown = (): void => store().moveCursor({ line: 1 });
 
 export function goToMeasureStart(): void {
   const { cursor } = store();
-  if (cursor) store().setCursor({ ...cursor, beatIndex: 0 });
+  if (cursor) {
+    store().setCursor({
+      trackId: cursor.trackId,
+      measureIndex: cursor.measureIndex,
+      beatIndex: 0,
+      line: cursor.line,
+    });
+  }
 }
 
 export function goToMeasureEnd(): void {
@@ -576,6 +589,11 @@ export function goToMeasureEnd(): void {
   const track = currentTrack();
   if (!cursor || !track) return;
   const measure = track.measures[cursor.measureIndex];
-  store().setCursor({ ...cursor, beatIndex: measure ? measure.beats.length : 0 });
+  store().setCursor({
+    trackId: cursor.trackId,
+    measureIndex: cursor.measureIndex,
+    beatIndex: measure ? measure.beats.length : 0,
+    line: cursor.line,
+  });
 }
 

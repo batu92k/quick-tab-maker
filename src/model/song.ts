@@ -254,6 +254,43 @@ export function beatIndexAtStart<N extends AnyNote>(
 }
 
 /**
+ * Snaps a raw bar position (a float, from a pointer) to the nearest grid point,
+ * returned as an *exact* fraction because this one may become a stored note
+ * position — unlike the playhead's snap, which only ever seeks.
+ *
+ * The grid is the subdivision lines *and* the actual note onsets, so a click
+ * lands on a note when it is near one and on a subdivision line otherwise —
+ * the same magnetism the playhead uses, so where you click and where a note
+ * lands agree. The bar's end is included so a click past the last note snaps to
+ * the append position rather than nowhere.
+ */
+export function snapPositionInMeasure(
+  beats: readonly { readonly start: Fraction }[],
+  capacity: Fraction,
+  subdivision: Fraction,
+  rawOffset: number,
+): Fraction {
+  const candidates: Fraction[] = [capacity];
+  for (let k = 0; ; k++) {
+    const line = F.scale(subdivision, k);
+    if (F.gte(line, capacity)) break;
+    candidates.push(line);
+  }
+  for (const beat of beats) candidates.push(beat.start);
+
+  let best = candidates[0]!;
+  let bestDist = Math.abs(F.toNumber(best) - rawOffset);
+  for (const candidate of candidates) {
+    const dist = Math.abs(F.toNumber(candidate) - rawOffset);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+/**
  * Recomputes each beat's `start` so beats sit back-to-back from zero.
  *
  * Tab entry is sequential — a user types notes left to right and changes a

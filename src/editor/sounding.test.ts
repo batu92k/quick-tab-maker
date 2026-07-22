@@ -203,38 +203,48 @@ describe('annotation commands', () => {
   });
 });
 
-describe('insert note between existing notes', () => {
-  const at = (track: Track, beatIndex: number): void =>
-    store().setCursor({ trackId: track.id, measureIndex: 0, beatIndex, line: 0 });
+describe('click-to-insert between notes', () => {
+  const cursorAt = (track: Track, beatIndex: number, insertAt?: F.Fraction): void =>
+    store().setCursor({
+      trackId: track.id,
+      measureIndex: 0,
+      beatIndex,
+      line: 0,
+      ...(insertAt ? { insertAt } : {}),
+    });
 
-  it('drops a shorter slot between two notes and shifts the rest right', () => {
-    // The reported case: 16th notes, wanting a 32nd in between.
-    const track = open([createStringTrack('guitar', { measureCount: 1 })]);
-    store().setEntryDuration(F.SIXTEENTH);
-    at(track, 0);
-    C.applyNoteInput(fretInput(0, 5));
-    at(track, 1);
-    C.applyNoteInput(fretInput(0, 7));
-
-    store().setEntryDuration(F.THIRTY_SECOND);
-    at(track, 1); // on the second 16th
-    expect(C.insertBeatAtCursor()).toBe(true);
-    C.applyNoteInput(fretInput(0, 9)); // fill the inserted rest
-
-    const beats = guitar().measures[0]!.beats;
-    expect(beats.map((b) => b.notes[0]?.fret)).toEqual([5, 9, 7]);
-    expect(beats.map((b) => F.toString(b.duration))).toEqual(['1/16', '1/32', '1/16']);
-  });
-
-  it('refuses to insert into a full bar', () => {
+  it('splits a quarter into two eighths — the reported full-bar case', () => {
     const track = open([createStringTrack('guitar', { measureCount: 1 })]);
     store().setEntryDuration(F.QUARTER);
     for (let i = 0; i < 4; i++) {
-      at(track, i);
+      cursorAt(track, i);
       C.applyNoteInput(fretInput(0, i));
     }
-    at(track, 2);
-    expect(C.insertBeatAtCursor()).toBe(false);
-    expect(guitar().measures[0]!.beats).toHaveLength(4);
+    // A click at 1/8 with the 8th value armed — the insert cursor the sheet sets.
+    store().setEntryDuration(F.EIGHTH);
+    cursorAt(track, 4, F.EIGHTH);
+    C.applyNoteInput(fretInput(0, 9));
+
+    const beats = guitar().measures[0]!.beats;
+    expect(beats.map((b) => F.toString(b.duration))).toEqual(['1/8', '1/8', '1/4', '1/4', '1/4']);
+    expect(beats.map((b) => b.notes[0]?.fret)).toEqual([0, 9, 1, 2, 3]);
+  });
+
+  it('edits the inserted note when retyped, rather than splitting again', () => {
+    const track = open([createStringTrack('guitar', { measureCount: 1 })]);
+    store().setEntryDuration(F.QUARTER);
+    cursorAt(track, 0);
+    C.applyNoteInput(fretInput(0, 5));
+    cursorAt(track, 1);
+    C.applyNoteInput(fretInput(0, 6));
+
+    store().setEntryDuration(F.EIGHTH);
+    cursorAt(track, 2, F.EIGHTH);
+    C.applyNoteInput(fretInput(0, 7)); // insert at 1/8
+    C.applyNoteInput(fretInput(0, 3)); // retype at the same position
+
+    const beats = guitar().measures[0]!.beats;
+    expect(beats.map((b) => F.toString(b.duration))).toEqual(['1/8', '1/8', '1/4']);
+    expect(beats.map((b) => b.notes[0]?.fret)).toEqual([5, 3, 6]); // note 7 edited to 3, no extra split
   });
 });

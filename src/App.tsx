@@ -59,6 +59,7 @@ function App() {
         measureIndex: hit.measureIndex,
         beatIndex: hit.beatIndex,
         line: hit.line,
+        ...(hit.insertAt !== undefined ? { insertAt: hit.insertAt } : {}),
       });
     },
     [setCursor],
