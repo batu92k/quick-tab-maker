@@ -11,7 +11,7 @@
 import type { Fraction } from './fraction';
 
 /** Bumped whenever the shape changes; see `migrate.ts`. */
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export type Id = string;
 
@@ -205,6 +205,21 @@ export interface SongKey {
   readonly mode: Mode;
 }
 
+/**
+ * A free-text note the user places on the sheet — "play x2", a fingering
+ * reminder, a section cue. Pinned to a musical position rather than a pixel so
+ * it rides with its bar when the score reflows and lands in the right place in
+ * the PDF, which is what makes it useful as a printed cheat sheet.
+ */
+export interface Annotation {
+  readonly id: Id;
+  /** Bar it is anchored above, 0-indexed. */
+  readonly bar: number;
+  /** Position within the bar, in whole notes. Zero pins it to the downbeat. */
+  readonly offset: Fraction;
+  readonly text: string;
+}
+
 export interface Song {
   readonly id: Id;
   readonly schemaVersion: number;
@@ -221,6 +236,9 @@ export interface Song {
   readonly key: SongKey;
 
   readonly tracks: readonly Track[];
+
+  /** Free-text notes on the sheet, sorted by bar then offset. */
+  readonly annotations: readonly Annotation[];
 }
 
 /* -------------------------------------------------------------------------- */

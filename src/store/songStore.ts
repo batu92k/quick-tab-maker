@@ -33,8 +33,17 @@ interface HistoryEntry {
   readonly inversePatches: Patch[];
   /** Shown in the UI and used to decide whether edits coalesce. */
   readonly label: string;
+  /**
+   * Set for edits that should fold into the previous one when they share it —
+   * typing into a text box, where a fresh undo entry per keystroke would make
+   * undo useless. Undefined means "always a new entry", the default.
+   */
+  readonly coalesceKey?: string;
   readonly at: number;
 }
+
+/** How close in time two same-key edits must be to merge into one undo step. */
+const COALESCE_MS = 700;
 
 export interface EditorState {
   song: Song | null;
@@ -62,7 +71,7 @@ export interface EditorState {
   duplicateSong: () => Song | null;
 
   /* Editing */
-  edit: (label: string, recipe: (draft: Draft<Song>) => void) => void;
+  edit: (label: string, recipe: (draft: Draft<Song>) => void, coalesceKey?: string) => void;
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
@@ -154,8 +163,8 @@ export const useSongStore = create<EditorState>((set, get) => ({
 
   /* ---------------------------------------------------------------------- */
 
-  edit(label, recipe) {
-    const { song, past } = get();
+  edit(label, recipe, coalesceKey) {
+    const { song, past, future } = get();
     if (!song) return;
 
     const [next, patches, inversePatches] = produceWithPatches(song, recipe);
@@ -165,7 +174,36 @@ export const useSongStore = create<EditorState>((set, get) => ({
     // broken — the user presses it and nothing visibly happens.
     if (patches.length === 0) return;
 
-    const entry: HistoryEntry = { patches, inversePatches, label, at: Date.now() };
+    const now = Date.now();
+    const last = past[past.length - 1];
+    // Fold consecutive same-key edits into the last entry so typing a text box
+    // is one undo step, not one per character. Never across an undo (a pending
+    // redo branch means `last` is not what this edit followed), and only inside
+    // a short window so a deliberate pause starts a fresh step.
+    const coalesce =
+      coalesceKey !== undefined &&
+      future.length === 0 &&
+      last?.coalesceKey === coalesceKey &&
+      now - last.at < COALESCE_MS;
+
+    if (coalesce && last) {
+      // Concatenate in order for redo; the inverse of the merged step must undo
+      // the newer change first, so its inverse patches go in front.
+      const merged: HistoryEntry = {
+        patches: [...last.patches, ...patches],
+        inversePatches: [...inversePatches, ...last.inversePatches],
+        label,
+        coalesceKey,
+        at: now,
+      };
+      set({ song: next, past: [...past.slice(0, -1), merged], future: [] });
+      getAutosaver().schedule(next);
+      return;
+    }
+
+    const entry: HistoryEntry = coalesceKey === undefined
+      ? { patches, inversePatches, label, at: now }
+      : { patches, inversePatches, label, coalesceKey, at: now };
     const trimmed = past.length >= HISTORY_LIMIT ? past.slice(past.length - HISTORY_LIMIT + 1) : past;
 
     set({

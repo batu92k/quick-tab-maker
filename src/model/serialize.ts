@@ -151,6 +151,19 @@ export function validateSong(raw: unknown): Song {
   if (tracks.length === 0) fail('a song needs at least one track', '$.tracks');
   tracks.forEach((t, i) => validateTrack(t, `$.tracks[${i}]`));
 
+  // Migration guarantees the field, but a hand-edited file might carry junk the
+  // renderer would dereference, so it is checked like anything else that
+  // reaches layout.
+  const annotations = requireArray(raw.annotations, '$.annotations');
+  annotations.forEach((a, i) => {
+    const path = `$.annotations[${i}]`;
+    if (!isRecord(a)) fail('expected an annotation object', path);
+    requireString(a.id, `${path}.id`);
+    requireNumber(a.bar, `${path}.bar`);
+    validateFraction(a.offset, `${path}.offset`);
+    requireString(a.text, `${path}.text`);
+  });
+
   return raw as unknown as Song;
 }
 

@@ -90,10 +90,68 @@ body {
 }
 
 .qtm-score-container {
+  position: relative; /* anchors the annotation input layer to the score */
   background: var(--qtm-bg);
   border: 1px solid var(--qtm-border);
   border-radius: 10px;
   padding: 4px;
   /* Wide scores scroll inside this box rather than the page. */
   overflow-x: auto;
+}
+
+/*
+ * On-sheet text annotations. The layer is inset to match the container padding
+ * so it shares the SVG's coordinate origin, and passes pointer events through
+ * except on the inputs, so scrubbing and note entry still reach the score.
+ */
+.qtm-annotation-layer {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  pointer-events: none;
+}
+
+.qtm-annotation-input {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  min-width: 2ch;
+  padding: 0 3px;
+  font-family: var(--qtm-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--qtm-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.qtm-annotation-input::placeholder {
+  font-weight: 400;
+  color: var(--qtm-text-muted);
+}
+
+/* Outlined on hover and focus so it reads as editable without cluttering the
+   sheet the rest of the time. */
+.qtm-annotation-input:hover {
+  border-color: var(--qtm-border);
+}
+
+.qtm-annotation-input:focus {
+  outline: none;
+  border-color: var(--qtm-accent);
+  background: var(--qtm-bg);
+}
+
+.qtm-sheet-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.qtm-sheet-tools-hint {
+  font-size: 13px;
+  color: var(--qtm-text-muted);
 }

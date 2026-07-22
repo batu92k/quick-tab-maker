@@ -15,6 +15,7 @@ import type { Fraction } from '../model/fraction';
 import { measureCapacity, measureFilled, timeSignatureAt } from '../model/song';
 import {
   isStringTrack,
+  type Annotation,
   type AnyNote,
   type Beat,
   type DrumNote,
@@ -70,14 +71,15 @@ const LAST_SYSTEM_MAX_STRETCH = 2.5;
 
 export const DEFAULT_LAYOUT_OPTIONS: LayoutOptions = {
   width: 1000,
-  // Room above the first staff for the scrub ruler, chord names, the track name
-  // and bar numbers, which all stack above the top staff line and would
-  // otherwise be clipped. Later systems get the same stack from `systemGap`.
-  marginTop: 46,
+  // Room above the first staff for the annotation lane, the scrub ruler, chord
+  // names, the track name and bar numbers, which all stack above the top staff
+  // line and would otherwise be clipped. Later systems get the same stack from
+  // `systemGap`.
+  marginTop: 54,
   marginX: 16,
   lineSpacing: 14,
   trackGap: 36,
-  systemGap: 44,
+  systemGap: 54,
   labelWidth: 44,
   minMeasureWidth: 90,
   beatBaseWidth: 22,
@@ -180,13 +182,26 @@ export interface LaidOutPage {
   readonly height: number;
 }
 
+export interface LaidOutAnnotation {
+  readonly annotation: Annotation;
+  /** Centre of the text box. */
+  readonly x: number;
+  readonly y: number;
+  readonly systemIndex: number;
+}
+
 export interface Layout {
   readonly width: number;
   readonly height: number;
   readonly systems: readonly LaidOutSystem[];
   readonly pages: readonly LaidOutPage[];
+  /** On-sheet text notes, positioned above their anchor bar. */
+  readonly annotations: readonly LaidOutAnnotation[];
   readonly options: LayoutOptions;
 }
+
+/** How far above the staff the annotation lane sits, in line-spacings. */
+const ANNOTATION_LANE = 2.7;
 
 /* -------------------------------------------------------------------------- */
 /* Measurement                                                                */
@@ -516,8 +531,40 @@ export function layoutSong(song: Song, options: Partial<LayoutOptions> = {}): La
     height,
     systems,
     pages: paginate(systems, o),
+    annotations: layoutAnnotations(song, systems, o),
     options: o,
   };
+}
+
+/**
+ * Positions each annotation above its anchor bar, on the shared onset grid so
+ * it lines up with the note it refers to. Anchored beyond the last bar or in a
+ * bar that somehow did not lay out, it is simply dropped rather than floated
+ * somewhere arbitrary.
+ */
+function layoutAnnotations(
+  song: Song,
+  systems: readonly LaidOutSystem[],
+  o: LayoutOptions,
+): LaidOutAnnotation[] {
+  const out: LaidOutAnnotation[] = [];
+  for (const annotation of song.annotations) {
+    for (let si = 0; si < systems.length; si++) {
+      const system = systems[si]!;
+      if (annotation.bar < system.firstMeasure || annotation.bar >= system.lastMeasure) continue;
+      const measure = system.staves[0]?.measures.find((m) => m.measureIndex === annotation.bar);
+      if (measure) {
+        out.push({
+          annotation,
+          x: offsetToX(measure, F.toNumber(annotation.offset)),
+          y: system.y - o.lineSpacing * ANNOTATION_LANE,
+          systemIndex: si,
+        });
+      }
+      break;
+    }
+  }
+  return out;
 }
 
 /**

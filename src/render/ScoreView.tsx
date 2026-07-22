@@ -44,9 +44,29 @@ export interface ScoreViewProps {
   onHit?: ((hit: HitResult) => void) | undefined;
   /** Called with a bar and continuous offset when the ruler is scrubbed. */
   onScrub?: ((bar: number, offset: number) => void) | undefined;
+  /**
+   * When set, on-sheet text annotations are shown as always-editable inputs
+   * over the score. `onAnnotationEdit` receives each keystroke; `onAnnotation
+   * Commit` fires on blur, where the caller can drop a note left blank.
+   */
+  onAnnotationEdit?: ((id: string, text: string) => void) | undefined;
+  onAnnotationCommit?: ((id: string) => void) | undefined;
+  /** Id of a freshly added note to focus for immediate typing. */
+  autoFocusAnnotation?: string | undefined;
 }
 
-export function ScoreView({ song, options, cursor, playhead, snap, onHit, onScrub }: ScoreViewProps) {
+export function ScoreView({
+  song,
+  options,
+  cursor,
+  playhead,
+  snap,
+  onHit,
+  onScrub,
+  onAnnotationEdit,
+  onAnnotationCommit,
+  autoFocusAnnotation,
+}: ScoreViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const scrubbing = useRef(false);
@@ -157,6 +177,31 @@ export function ScoreView({ song, options, cursor, playhead, snap, onHit, onScru
           onPointerMove={onScrub ? handlePointerMove : undefined}
           onPointerUp={onScrub ? handlePointerUp : undefined}
         />
+      )}
+      {/*
+        Annotations are HTML inputs over the SVG rather than SVG text, so they
+        are genuinely editable in place. The layer passes clicks through to the
+        score except on the inputs themselves, so scrubbing and note entry still
+        work underneath. The layout positions them, so screen and a future PDF
+        (which will draw them as plain SVG text) cannot disagree.
+      */}
+      {width > 0 && onAnnotationEdit && (
+        <div className="qtm-annotation-layer">
+          {layout.annotations.map(({ annotation, x, y }) => (
+            <input
+              key={annotation.id}
+              className="qtm-annotation-input"
+              style={{ left: x, top: y }}
+              size={Math.max(4, annotation.text.length)}
+              value={annotation.text}
+              placeholder="text…"
+              aria-label={`Sheet note in bar ${annotation.bar + 1}`}
+              autoFocus={annotation.id === autoFocusAnnotation}
+              onChange={(e) => onAnnotationEdit(annotation.id, e.target.value)}
+              onBlur={() => onAnnotationCommit?.(annotation.id)}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

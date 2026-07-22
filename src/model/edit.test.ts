@@ -365,3 +365,59 @@ describe('tracks', () => {
     });
   });
 });
+
+describe('annotations', () => {
+  const song4 = (): Song =>
+    createSong({ tracks: [createStringTrack('guitar', { measureCount: 4 })] });
+
+  it('adds text notes and keeps them ordered by bar', () => {
+    const song = apply(song4(), (d) => {
+      E.addAnnotation(d, { id: 'b', bar: 2, offset: F.ZERO, text: 'two' });
+      E.addAnnotation(d, { id: 'a', bar: 0, offset: F.ZERO, text: 'zero' });
+    });
+    expect(song.annotations.map((a) => a.id)).toEqual(['a', 'b']);
+  });
+
+  it('edits and removes an existing note, and refuses a missing one', () => {
+    const song = apply(song4(), (d) => {
+      E.addAnnotation(d, { id: 'a', bar: 1, offset: F.ZERO, text: 'x' });
+      expect(E.setAnnotationText(d, 'a', 'play x2')).toBe(true);
+      expect(E.setAnnotationText(d, 'nope', 'y')).toBe(false);
+      expect(E.removeAnnotation(d, 'nope')).toBe(false);
+    });
+    expect(song.annotations[0]!.text).toBe('play x2');
+    const emptied = apply(song, (d) => {
+      expect(E.removeAnnotation(d, 'a')).toBe(true);
+    });
+    expect(emptied.annotations).toHaveLength(0);
+  });
+
+  it('re-anchors a note and re-sorts', () => {
+    const song = apply(song4(), (d) => {
+      E.addAnnotation(d, { id: 'a', bar: 0, offset: F.ZERO, text: 'x' });
+      E.addAnnotation(d, { id: 'b', bar: 1, offset: F.ZERO, text: 'y' });
+      expect(E.moveAnnotation(d, 'a', 3, F.QUARTER)).toBe(true);
+      expect(E.moveAnnotation(d, 'a', -1, F.ZERO)).toBe(false);
+    });
+    expect(song.annotations.map((a) => a.id)).toEqual(['b', 'a']);
+    expect(song.annotations.find((a) => a.id === 'a')!.bar).toBe(3);
+  });
+
+  it('shifts notes forward when a bar is inserted before them', () => {
+    const song = apply(song4(), (d) => {
+      E.addAnnotation(d, { id: 'a', bar: 2, offset: F.ZERO, text: 'x' });
+      E.insertMeasure(d, 1);
+    });
+    expect(song.annotations[0]!.bar).toBe(3);
+  });
+
+  it('drops a note on a deleted bar and pulls later ones back', () => {
+    const song = apply(song4(), (d) => {
+      E.addAnnotation(d, { id: 'gone', bar: 1, offset: F.ZERO, text: 'x' });
+      E.addAnnotation(d, { id: 'kept', bar: 2, offset: F.ZERO, text: 'y' });
+      E.deleteMeasure(d, 1);
+    });
+    expect(song.annotations.map((a) => a.id)).toEqual(['kept']);
+    expect(song.annotations[0]!.bar).toBe(1);
+  });
+});

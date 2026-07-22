@@ -179,3 +179,26 @@ describe('soundingPositions', () => {
     ]);
   });
 });
+
+describe('annotation commands', () => {
+  it('adds, edits and removes a note through the real store and Immer', () => {
+    // Exercises the command wrappers end to end: a concise arrow that returns
+    // an edit op's boolean trips Immer's "returned a value and mutated" guard,
+    // and only the real produceWithPatches path catches it.
+    const track = open([createStringTrack('guitar', { measureCount: 2 })]);
+    store().setCursor({ trackId: track.id, measureIndex: 1, beatIndex: 0, line: 0 });
+
+    const id = C.addAnnotationAtCursor();
+    expect(id).toBeTruthy();
+
+    C.editAnnotationText(id!, 'play x2');
+    expect(store().song!.annotations).toEqual([{ id, bar: 1, offset: F.ZERO, text: 'play x2' }]);
+
+    C.removeAnnotationIfEmpty(id!); // has text, stays
+    expect(store().song!.annotations).toHaveLength(1);
+
+    C.editAnnotationText(id!, '   ');
+    C.removeAnnotationIfEmpty(id!); // blank, removed
+    expect(store().song!.annotations).toHaveLength(0);
+  });
+});

@@ -528,3 +528,25 @@ describe('scrub ruler', () => {
     expect(target.bar).toBe(1); // the last bar, not undefined
   });
 });
+
+describe('annotations layout', () => {
+  it('positions a note above its anchor bar on the onset grid', () => {
+    const song = produce(guitarOnly(4), (d) => {
+      E.addAnnotation(d, { id: 'a', bar: 2, offset: F.ZERO, text: 'x2' });
+    });
+    const layout = layoutSong(song, { width: 2400 });
+    expect(layout.annotations).toHaveLength(1);
+    const laid = layout.annotations[0]!;
+    const system = layout.systems.find((s) => 2 >= s.firstMeasure && 2 < s.lastMeasure)!;
+    const measure = system.staves[0]!.measures.find((m) => m.measureIndex === 2)!;
+    expect(laid.x).toBeCloseTo(offsetToX(measure, 0));
+    expect(laid.y).toBeLessThan(system.y); // above the staff
+  });
+
+  it('drops a note anchored past the last bar rather than floating it', () => {
+    const song = produce(guitarOnly(2), (d) => {
+      E.addAnnotation(d, { id: 'a', bar: 9, offset: F.ZERO, text: 'x' });
+    });
+    expect(layoutSong(song).annotations).toHaveLength(0);
+  });
+});

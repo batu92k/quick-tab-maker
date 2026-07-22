@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import * as C from './editor/commands';
 import { InstrumentPanel } from './components/InstrumentPanel';
 import { Mixer } from './components/Mixer';
 import { Transport } from './components/Transport';
@@ -35,6 +36,9 @@ function App() {
 
   const [theme, setTheme] = useState<Theme>('light');
   const [showShortcuts, setShowShortcuts] = useState(false);
+  // Id of a note just added, so its input can grab focus for typing. Cleared on
+  // blur so the same box is not re-focused on later renders.
+  const [autoFocusAnnotation, setAutoFocusAnnotation] = useState<string | undefined>(undefined);
 
   useEditorKeyboard(true);
 
@@ -59,6 +63,16 @@ function App() {
     },
     [setCursor],
   );
+
+  const handleAddText = useCallback(() => {
+    const id = C.addAnnotationAtCursor();
+    if (id) setAutoFocusAnnotation(id);
+  }, []);
+
+  const handleAnnotationCommit = useCallback((id: string) => {
+    C.removeAnnotationIfEmpty(id);
+    setAutoFocusAnnotation((current) => (current === id ? undefined : current));
+  }, []);
 
   return (
     <div className="qtm-app">
@@ -99,6 +113,16 @@ function App() {
 
       <main className="qtm-main">
         {song && (
+          <div className="qtm-sheet-tools">
+            <button type="button" className="qtm-button" onClick={handleAddText}>
+              Add text note
+            </button>
+            <span className="qtm-sheet-tools-hint">
+              Placed above the cursor’s beat. Click any note to edit it; clear it to remove.
+            </span>
+          </div>
+        )}
+        {song && (
           <ScoreView
             song={song}
             cursor={cursor}
@@ -106,6 +130,9 @@ function App() {
             snap={snap}
             onHit={handleHit}
             onScrub={scrubTo}
+            onAnnotationEdit={C.editAnnotationText}
+            onAnnotationCommit={handleAnnotationCommit}
+            autoFocusAnnotation={autoFocusAnnotation}
           />
         )}
         <InstrumentPanel />

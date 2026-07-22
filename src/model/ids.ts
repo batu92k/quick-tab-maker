@@ -30,3 +30,4 @@ export const newTrackId = (): string => `trk_${randomId()}`;
 export const newMeasureId = (): string => `msr_${randomId()}`;
 export const newBeatId = (): string => `bt_${randomId()}`;
 export const newNoteId = (): string => `nt_${randomId()}`;
+export const newAnnotationId = (): string => `ann_${randomId()}`;

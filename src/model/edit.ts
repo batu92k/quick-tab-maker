@@ -22,6 +22,7 @@ import { createBeat, createMeasure, measureCapacity } from './song';
 import {
   isDrumTrack,
   isStringTrack,
+  type Annotation,
   type DrumArticulation,
   type DrumNote,
   type DrumPiece,
@@ -371,6 +372,7 @@ export function insertMeasure(song: D<Song>, index: number): void {
     track.measures.splice(at, 0, createMeasure() as never);
   }
   shiftMarkers(song, index, 1);
+  shiftAnnotations(song, index, 1);
   touch(song);
 }
 
@@ -382,6 +384,7 @@ export function deleteMeasure(song: D<Song>, index: number): boolean {
     if (index < track.measures.length) track.measures.splice(index, 1);
   }
   shiftMarkers(song, index, -1);
+  shiftAnnotations(song, index, -1);
   touch(song);
   return true;
 }
@@ -516,6 +519,64 @@ export function setCapo(song: D<Song>, trackId: Id, capo: number): boolean {
   const track = getStringTrack(song, trackId);
   if (!track || capo < 0 || capo > 12 || !Number.isInteger(capo)) return false;
   track.capo = capo;
+  touch(song);
+  return true;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Annotations                                                                */
+/* -------------------------------------------------------------------------- */
+
+/** Keeps the list ordered so rendering is stable and bars group together. */
+function sortAnnotations(song: D<Song>): void {
+  song.annotations.sort((a, b) => a.bar - b.bar || F.cmp(a.offset, b.offset));
+}
+
+/**
+ * Moves annotations when bars are inserted or removed, mirroring `shiftMarkers`
+ * — but unlike the marker lists, annotations are not pinned at bar 0, and a bar
+ * that is deleted takes its annotations with it. Their offset within the bar is
+ * left alone: the note travels with its bar, not with an absolute position.
+ */
+function shiftAnnotations(song: D<Song>, fromBar: number, delta: number): void {
+  if (delta < 0) {
+    song.annotations = song.annotations.filter((a) => a.bar !== fromBar);
+  }
+  for (const a of song.annotations) {
+    if (a.bar > fromBar || (delta > 0 && a.bar === fromBar)) a.bar += delta;
+  }
+}
+
+/** Adds a text note. The caller supplies the id so it can focus the new box. */
+export function addAnnotation(song: D<Song>, annotation: Annotation): void {
+  song.annotations.push({ ...annotation });
+  sortAnnotations(song);
+  touch(song);
+}
+
+export function setAnnotationText(song: D<Song>, id: Id, text: string): boolean {
+  const annotation = song.annotations.find((a) => a.id === id);
+  if (!annotation) return false;
+  annotation.text = text;
+  touch(song);
+  return true;
+}
+
+/** Re-anchors a note to a different bar and position. */
+export function moveAnnotation(song: D<Song>, id: Id, bar: number, offset: Fraction): boolean {
+  const annotation = song.annotations.find((a) => a.id === id);
+  if (!annotation || bar < 0 || !Number.isInteger(bar)) return false;
+  annotation.bar = bar;
+  annotation.offset = offset;
+  sortAnnotations(song);
+  touch(song);
+  return true;
+}
+
+export function removeAnnotation(song: D<Song>, id: Id): boolean {
+  const at = song.annotations.findIndex((a) => a.id === id);
+  if (at < 0) return false;
+  song.annotations.splice(at, 1);
   touch(song);
   return true;
 }

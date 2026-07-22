@@ -11,6 +11,7 @@
 import * as E from '../model/edit';
 import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
+import { newAnnotationId } from '../model/ids';
 import { measureCapacity, measureFilled, timeSignatureAt } from '../model/song';
 import {
   isDrumTrack,
@@ -429,6 +430,58 @@ export function stepTrack(delta: number): void {
     beatIndex: 0,
     line: Math.min(cursor.line, lineCount - 1),
   });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Annotations                                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Adds an empty text note anchored to the cursor's bar and beat, and returns
+ * its id so the caller can focus the new box for typing. Anchoring to the beat
+ * the cursor sits on is the least surprising place: the user positioned the
+ * cursor, so that is where "here" is.
+ */
+export function addAnnotationAtCursor(): string | null {
+  const { song, cursor } = store();
+  if (!song) return null;
+
+  const bar = cursor?.measureIndex ?? 0;
+  const track = currentTrack();
+  const offset = cursor && track?.measures[bar]?.beats[cursor.beatIndex]?.start;
+  const id = newAnnotationId();
+  // The add and the typing that follows share a coalesce key, so placing a note
+  // and writing it is a single undo step: one press of undo removes the note.
+  store().edit(
+    'Add text',
+    (draft) => E.addAnnotation(draft, { id, bar, offset: offset ?? F.ZERO, text: '' }),
+    `annotation:${id}`,
+  );
+  return id;
+}
+
+export function editAnnotationText(id: string, text: string): void {
+  // Block body, not a concise return: these ops return a boolean, and Immer
+  // rejects a producer that both returns a value and mutates the draft.
+  store().edit(
+    'Edit text',
+    (draft) => {
+      E.setAnnotationText(draft, id, text);
+    },
+    `annotation:${id}`,
+  );
+}
+
+export function removeAnnotation(id: string): void {
+  store().edit('Delete text', (draft) => {
+    E.removeAnnotation(draft, id);
+  });
+}
+
+/** Removes a note if it was left blank — how an accidental add cleans itself up. */
+export function removeAnnotationIfEmpty(id: string): void {
+  const annotation = store().song?.annotations.find((a) => a.id === id);
+  if (annotation && annotation.text.trim() === '') removeAnnotation(id);
 }
 
 /* -------------------------------------------------------------------------- */

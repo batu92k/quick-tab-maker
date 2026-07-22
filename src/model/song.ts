@@ -114,6 +114,7 @@ export function createSong(
     timeSignatures: [{ bar: 0, num: timeSig.num, den: timeSig.den }],
     key: options.key ?? DEFAULT_KEY,
     tracks: options.tracks ?? [createStringTrack('guitar')],
+    annotations: [],
   };
 }
 

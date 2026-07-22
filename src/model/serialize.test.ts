@@ -143,8 +143,35 @@ describe('migration', () => {
     expect(() => migrate(ancient)).toThrow(MigrationError);
   });
 
+  it('gives a v1 song the empty annotations list v2 requires', () => {
+    // A v1 document has no annotations field at all; the rest of the app now
+    // dereferences it, so the migration must supply the empty default.
+    const v1 = { ...JSON.parse(songToJson(populatedSong())), schemaVersion: 1 };
+    delete (v1 as Record<string, unknown>).annotations;
+    const migrated = migrate(v1);
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(migrated.annotations).toEqual([]);
+  });
+
   it('stamps new songs with the current version', () => {
     expect(createSong().schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+  });
+});
+
+describe('annotations round-trip', () => {
+  it('survives export and re-import', () => {
+    const song = produce(populatedSong(), (d) => {
+      E.addAnnotation(d, { id: 'ann_1', bar: 1, offset: F.QUARTER, text: 'play x2' });
+    });
+    expect(songFromJson(songToJson(song)).annotations).toEqual(song.annotations);
+  });
+
+  it('rejects a malformed annotation reaching the renderer', () => {
+    const bad = {
+      ...JSON.parse(songToJson(populatedSong())),
+      annotations: [{ id: 'x', bar: 'nope', offset: { n: 0, d: 1 }, text: 't' }],
+    };
+    expect(() => songFromJson(JSON.stringify(bad))).toThrow(SongParseError);
   });
 });
 

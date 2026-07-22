@@ -23,7 +23,15 @@ type Migration = (song: UnknownSong) => UnknownSong;
 
 /** Keyed by the version being migrated *from*. */
 const MIGRATIONS: Readonly<Record<number, Migration>> = {
-  // 1: (song) => ({ ...song, schemaVersion: 2, /* … */ }),
+  // v2 added on-sheet text annotations. Older songs simply have none, so the
+  // migration is to give the field its empty default — but it still has to
+  // exist, because the rest of the app now dereferences `song.annotations`
+  // without guarding, and an absent field would fault on the first render.
+  1: (song) => ({
+    ...song,
+    schemaVersion: 2,
+    annotations: Array.isArray(song.annotations) ? song.annotations : [],
+  }),
 };
 
 export class MigrationError extends Error {

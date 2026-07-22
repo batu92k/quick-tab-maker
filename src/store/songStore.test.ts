@@ -237,3 +237,41 @@ describe('duplicateSong', () => {
     expect(isStringTrack(copiedTrack) && copiedTrack.measures[0]!.beats[0]!.notes[0]!.fret).toBe(3);
   });
 });
+
+describe('edit coalescing', () => {
+  it('folds same-key edits into one undo step', () => {
+    openTestSong();
+    // Simulate typing into a text box: three keystrokes under one coalesce key.
+    store().edit('Add text', (d) => E.addAnnotation(d, { id: 'ann_1', bar: 0, offset: F.ZERO, text: '' }), 'annotation:ann_1');
+    store().edit('Edit text', (d) => { E.setAnnotationText(d, 'ann_1', 'p'); }, 'annotation:ann_1');
+    store().edit('Edit text', (d) => { E.setAnnotationText(d, 'ann_1', 'pl'); }, 'annotation:ann_1');
+
+    expect(store().past).toHaveLength(1);
+    expect(store().song!.annotations[0]!.text).toBe('pl');
+
+    store().undo();
+    // One undo removes the whole note — add and typing were a single step.
+    expect(store().song!.annotations).toHaveLength(0);
+    store().redo();
+    expect(store().song!.annotations[0]!.text).toBe('pl');
+  });
+
+  it('keeps un-keyed edits as separate steps', () => {
+    openTestSong();
+    placeNote(3, 0);
+    placeNote(5, 1);
+    expect(store().past).toHaveLength(2);
+  });
+
+  it('does not coalesce across an undo', () => {
+    openTestSong();
+    store().edit('Add text', (d) => E.addAnnotation(d, { id: 'ann_1', bar: 0, offset: F.ZERO, text: 'a' }), 'annotation:ann_1');
+    store().undo();
+    // A pending redo branch means this edit did not follow the last past entry,
+    // so it must start a fresh one rather than merging into a stale step.
+    store().edit('Add text', (d) => E.addAnnotation(d, { id: 'ann_2', bar: 0, offset: F.ZERO, text: 'b' }), 'annotation:ann_2');
+    expect(store().future).toHaveLength(0);
+    expect(store().past).toHaveLength(1);
+    expect(store().song!.annotations.map((a) => a.id)).toEqual(['ann_2']);
+  });
+});
