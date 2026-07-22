@@ -550,3 +550,15 @@ describe('annotations layout', () => {
     expect(layoutSong(song).annotations).toHaveLength(0);
   });
 });
+
+describe('empty-bar ruler spacing', () => {
+  it('spreads an empty bar evenly instead of cramming the grid to the right', () => {
+    const measure = layoutSong(guitarOnly(1)).systems[0]!.staves[0]!.measures[0]!;
+    const xs = [0, 0.25, 0.5, 0.75, 1].map((o) => offsetToX(measure, o));
+    const gaps = xs.slice(1).map((x, i) => x - xs[i]!);
+    // Every quarter-gap is equal — the ticks are not bunched into the right half.
+    for (const g of gaps) expect(g).toBeCloseTo(gaps[0]!, 1);
+    // The downbeat sits at the far left, not the middle of the bar.
+    expect(xs[0]!).toBeLessThan((xs[0]! + xs[4]!) / 2);
+  });
+});

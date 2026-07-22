@@ -379,9 +379,17 @@ function layoutMeasure(
   const edgeAt = (i: number): number => contentLeft + grid.xs[i]! * scale;
   const columnAt = (i: number): number => edgeAt(i) + halfColumn(grid, i) * scale;
 
+  // A bar no track has played into has a degenerate grid — just [start, end] —
+  // so beat 0's "column" is the whole bar and centring it (below) would drop the
+  // downbeat in the middle. The ruler then interpolates every tick into the
+  // right half and the playhead sweeps only that half. With nothing to align to,
+  // the time axis is anchored to the bar's edges instead, so ticks and playhead
+  // spread evenly across it. Any bar with notes keeps the note-centred columns.
+  const emptyBar = grid.positions.length === 2;
+
   const columns: MeasureColumn[] = grid.positions.map((position, i) => ({
     at: F.toNumber(position),
-    x: columnAt(i),
+    x: emptyBar ? edgeAt(i) : columnAt(i),
   }));
 
   // Resolved once for the bar, not per beat: the fretboard spec is the same for
