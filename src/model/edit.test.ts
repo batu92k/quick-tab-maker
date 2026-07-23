@@ -463,6 +463,18 @@ describe('insertNoteAt', () => {
       expect(E.insertNoteAt(d, id, 0, F.QUARTER, 0, 7, F.EIGHTH)).toBe(false); // empty tail
     });
   });
+
+  it('refuses an empty measure — there is no beat to split, so the caller appends', () => {
+    // The between-notes click path must never reach here on an empty bar: with
+    // no beat covering the position, a split is impossible and the first note of
+    // a bar belongs at its start. This is the model half of the bug where a bar
+    // emptied by deleting every other one could take no new notes.
+    apply(guitarSong(), (d) => {
+      const id = d.tracks[0]!.id;
+      expect(E.insertNoteAt(d, id, 0, F.EIGHTH, 0, 7, F.EIGHTH)).toBe(false);
+      expect(d.tracks[0]!.measures[0]!.beats.length).toBe(0); // untouched
+    });
+  });
 });
 
 describe('snapPositionInMeasure', () => {

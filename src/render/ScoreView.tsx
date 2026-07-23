@@ -154,14 +154,32 @@ export function ScoreView({
 
       const onset = beats.findIndex((b) => F.eq(b.start, snapped));
       if (onset >= 0) return { ...hit, beatIndex: onset };
-      if (F.gte(snapped, capacity)) return { ...hit, beatIndex: beats.length };
-      return { ...hit, beatIndex: beats.length, insertAt: snapped };
+
+      // Split only makes sense when the click lands strictly inside a note's
+      // span — there is a beat to cut in two. An empty bar or a gap past the
+      // last note has nothing to split, so the note appends at the end instead
+      // (the model forbids a leading rest, so the first note of a bar lands at
+      // its start). Without this, clicking an empty bar produced an insert the
+      // model could only refuse, and no note could be entered.
+      const covering = beats.findIndex(
+        (b) => F.lt(b.start, snapped) && F.lt(snapped, F.add(b.start, b.duration)),
+      );
+      if (covering >= 0) return { ...hit, beatIndex: beats.length, insertAt: snapped };
+      return { ...hit, beatIndex: beats.length };
     },
     [layout, snap, song],
   );
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {
+      // Clicking into the score means the user wants to work here: pull keyboard
+      // focus off any form control (tempo, snap, key, scale…) that still holds
+      // it, or the arrow keys would keep driving that control instead of moving
+      // between beats. The document-level key handler only navigates while focus
+      // is not in an input.
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) active.blur();
+
       // A click that lands on the ruler scrubs and starts a drag; anything else
       // is an edit. The ruler sits above the staves, so the two never overlap.
       if (scrubAt(event)) {
