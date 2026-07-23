@@ -133,8 +133,21 @@ export function EditorToolbar() {
         <button type="button" className="qtm-tool qtm-tool--wide" title="Add bar at end (Enter)" onClick={C.appendMeasure}>
           Add bar
         </button>
-        <button type="button" className="qtm-tool qtm-tool--wide" title="Delete bar (Ctrl + Backspace)" onClick={C.deleteMeasureAtCursor}>
+        <button
+          type="button"
+          className="qtm-tool qtm-tool--wide"
+          title="Delete this track's bar (Ctrl + Backspace)"
+          onClick={C.deleteMeasureAtCursor}
+        >
           Delete bar
+        </button>
+        <button
+          type="button"
+          className="qtm-tool qtm-tool--wide"
+          title="Empty the bar but keep it, so tracks stay aligned (Ctrl + Shift + Backspace)"
+          onClick={C.clearMeasureAtCursor}
+        >
+          Clear bar
         </button>
       </div>
 

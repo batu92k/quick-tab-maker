@@ -249,23 +249,46 @@ describe('drums', () => {
 });
 
 describe('measures', () => {
-  it('inserts and deletes across every track so bars stay aligned', () => {
+  it('inserts across every track so new bars stay aligned', () => {
     const song = createSong({
       tracks: [createStringTrack('guitar', { measureCount: 4 }), createDrumTrack({ measureCount: 4 })],
     });
     const inserted = apply(song, (d) => E.insertMeasure(d, 1));
     expect(inserted.tracks.map((t) => t.measures.length)).toEqual([5, 5]);
-
-    const deleted = apply(inserted, (d) => {
-      E.deleteMeasure(d, 1);
-    });
-    expect(deleted.tracks.map((t) => t.measures.length)).toEqual([4, 4]);
   });
 
-  it('refuses to delete the only measure', () => {
+  it('deletes a bar from one track only, leaving the others as they are', () => {
+    const song = createSong({
+      tracks: [createStringTrack('guitar', { measureCount: 4 }), createDrumTrack({ measureCount: 4 })],
+    });
+    const deleted = apply(song, (d) => {
+      E.deleteMeasure(d, d.tracks[0]!.id, 1);
+    });
+    expect(deleted.tracks.map((t) => t.measures.length)).toEqual([3, 4]);
+  });
+
+  it('refuses to delete a track down to no bars', () => {
     const song = createSong({ tracks: [createStringTrack('guitar', { measureCount: 1 })] });
     apply(song, (d) => {
-      expect(E.deleteMeasure(d, 0)).toBe(false);
+      expect(E.deleteMeasure(d, d.tracks[0]!.id, 0)).toBe(false);
+    });
+  });
+
+  it('clears a bar in place without removing it', () => {
+    const song = createSong({ tracks: [createStringTrack('guitar', { measureCount: 2 })] });
+    const withNote = apply(song, (d) => {
+      E.setNote(d, d.tracks[0]!.id, 0, 0, 0, 5, F.QUARTER);
+    });
+    expect(withNote.tracks[0]!.measures[0]!.beats.length).toBeGreaterThan(0);
+
+    const cleared = apply(withNote, (d) => {
+      expect(E.clearMeasure(d, d.tracks[0]!.id, 0)).toBe(true);
+    });
+    expect(cleared.tracks[0]!.measures).toHaveLength(2); // still there
+    expect(cleared.tracks[0]!.measures[0]!.beats).toHaveLength(0); // but empty
+
+    apply(cleared, (d) => {
+      expect(E.clearMeasure(d, d.tracks[0]!.id, 0)).toBe(false); // already empty
     });
   });
 
@@ -417,14 +440,17 @@ describe('annotations', () => {
     expect(song.annotations[0]!.bar).toBe(3);
   });
 
-  it('drops a note on a deleted bar and pulls later ones back', () => {
+  it('leaves annotations in place when one track loses a bar', () => {
+    // Annotations are pinned to the shared timeline, which a single track
+    // shortening does not move — so neither their bar nor their existence
+    // changes when a bar is deleted from just one instrument.
     const song = apply(song4(), (d) => {
-      E.addAnnotation(d, { id: 'gone', bar: 1, offset: F.ZERO, text: 'x' });
-      E.addAnnotation(d, { id: 'kept', bar: 2, offset: F.ZERO, text: 'y' });
-      E.deleteMeasure(d, 1);
+      E.addAnnotation(d, { id: 'a', bar: 1, offset: F.ZERO, text: 'x' });
+      E.addAnnotation(d, { id: 'b', bar: 2, offset: F.ZERO, text: 'y' });
+      E.deleteMeasure(d, d.tracks[0]!.id, 1);
     });
-    expect(song.annotations.map((a) => a.id)).toEqual(['kept']);
-    expect(song.annotations[0]!.bar).toBe(1);
+    expect(song.annotations.map((a) => a.id)).toEqual(['a', 'b']);
+    expect(song.annotations.map((a) => a.bar)).toEqual([1, 2]);
   });
 });
 

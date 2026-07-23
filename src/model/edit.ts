@@ -433,15 +433,37 @@ export function insertMeasure(song: D<Song>, index: number): void {
   touch(song);
 }
 
-/** Deletes a measure from every track. Refuses to delete the last one. */
-export function deleteMeasure(song: D<Song>, index: number): boolean {
-  const longest = song.tracks.reduce((max, t) => Math.max(max, t.measures.length), 0);
-  if (longest <= 1 || index < 0 || index >= longest) return false;
-  for (const track of song.tracks) {
-    if (index < track.measures.length) track.measures.splice(index, 1);
-  }
-  shiftMarkers(song, index, -1);
-  shiftAnnotations(song, index, -1);
+/**
+ * Deletes one bar from a single track, leaving the other tracks as they are.
+ *
+ * Tracks may differ in length: one shortened below the others simply falls
+ * silent for the extra bars while they play on. Tempo/signature markers and
+ * annotations live on the shared timeline, which a single track losing a bar
+ * does not move, so they stay put — which is exactly why deleting a bar in the
+ * middle shifts only *this* track's later bars out of alignment with the rest.
+ *
+ * Refuses to remove a track's last bar; `clearMeasure` empties a bar instead
+ * while keeping every track aligned.
+ */
+export function deleteMeasure(song: D<Song>, trackId: Id, index: number): boolean {
+  const track = getTrack(song, trackId);
+  if (!track) return false;
+  if (track.measures.length <= 1 || index < 0 || index >= track.measures.length) return false;
+  track.measures.splice(index, 1);
+  touch(song);
+  return true;
+}
+
+/**
+ * Empties a bar's notes but keeps the bar itself, so every track stays bar-
+ * aligned. The counterpart to `deleteMeasure` for when the grid matters more
+ * than reclaiming the bar. Returns false — no history entry — for a bar that is
+ * already empty.
+ */
+export function clearMeasure(song: D<Song>, trackId: Id, index: number): boolean {
+  const measure = getTrack(song, trackId)?.measures[index];
+  if (!measure || measure.beats.length === 0) return false;
+  measure.beats = [];
   touch(song);
   return true;
 }

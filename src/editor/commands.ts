@@ -448,12 +448,48 @@ export function appendMeasure(): void {
   store().edit('Add bar', (draft) => E.appendMeasure(draft));
 }
 
+/** Removes the cursor's bar from its track only, leaving the others aligned. */
 export function deleteMeasureAtCursor(): void {
   const { cursor } = store();
-  if (!cursor) return;
+  const track = currentTrack();
+  if (!cursor || !track) return;
+
+  let applied = false;
   store().edit('Delete bar', (draft) => {
-    E.deleteMeasure(draft, cursor.measureIndex);
+    applied = E.deleteMeasure(draft, cursor.trackId, cursor.measureIndex);
   });
+  if (!applied) {
+    if (track.measures.length <= 1) {
+      store().setNotice('A track keeps at least one bar. Use Clear bar to empty it instead.');
+    }
+    return;
+  }
+  // Deleting the track's last bar leaves the cursor pointing past the end; pull
+  // it back onto a bar that still exists.
+  clampCursorToTrack();
+}
+
+/** Empties the cursor's bar but keeps it, so all tracks stay bar-aligned. */
+export function clearMeasureAtCursor(): void {
+  const { cursor } = store();
+  if (!cursor) return;
+  store().edit('Clear bar', (draft) => {
+    E.clearMeasure(draft, cursor.trackId, cursor.measureIndex);
+  });
+}
+
+/** Keeps the cursor on a real bar and beat after its track changes shape. */
+function clampCursorToTrack(): void {
+  const { song, cursor } = store();
+  if (!song || !cursor) return;
+  const track = song.tracks.find((t) => t.id === cursor.trackId);
+  if (!track) return;
+  const measureIndex = Math.min(cursor.measureIndex, Math.max(0, track.measures.length - 1));
+  const measure = track.measures[measureIndex];
+  const beatIndex = Math.min(cursor.beatIndex, measure ? measure.beats.length : 0);
+  if (measureIndex !== cursor.measureIndex || beatIndex !== cursor.beatIndex) {
+    store().setCursor({ trackId: cursor.trackId, measureIndex, beatIndex, line: cursor.line });
+  }
 }
 
 /** Moves the cursor to the next or previous track, keeping the bar position. */
