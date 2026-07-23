@@ -481,25 +481,58 @@ describe('insertNoteAt', () => {
     expect(beats.map((b) => b.notes.length)).toEqual([1, 1, 0, 1]);
   });
 
-  it('refuses a position on an onset or past the last note', () => {
-    apply(guitarSong(), (d) => {
+  it('refuses an onset or a position at/past the bar line, but fills an empty tail', () => {
+    const song = apply(guitarSong(), (d) => {
       const id = d.tracks[0]!.id;
       E.setNote(d, id, 0, 0, 0, 5, Q); // fills [0, 1/4]
       expect(E.insertNoteAt(d, id, 0, F.ZERO, 0, 7, F.EIGHTH)).toBe(false); // onset
-      expect(E.insertNoteAt(d, id, 0, F.QUARTER, 0, 7, F.EIGHTH)).toBe(false); // empty tail
+      expect(E.insertNoteAt(d, id, 0, F.ONE, 0, 7, F.EIGHTH)).toBe(false); // the bar line
+      // A position in the empty tail past the quarter now places a note there,
+      // filling the gap between with a rest rather than refusing.
+      expect(E.insertNoteAt(d, id, 0, F.QUARTER, 0, 7, F.EIGHTH)).toBe(true);
     });
+    const beats = measureOf(song).beats;
+    expect(beats.map((b) => F.toString(b.start))).toEqual(['0', '1/4']);
+    expect(beats.map((b) => b.notes[0]?.fret)).toEqual([5, 7]);
   });
 
-  it('refuses an empty measure — there is no beat to split, so the caller appends', () => {
-    // The between-notes click path must never reach here on an empty bar: with
-    // no beat covering the position, a split is impossible and the first note of
-    // a bar belongs at its start. This is the model half of the bug where a bar
-    // emptied by deleting every other one could take no new notes.
-    apply(guitarSong(), (d) => {
+  it('gap-fills an empty measure with a leading rest so a click lands where aimed', () => {
+    // A bar emptied by clearing (or deleting every other one) can now take a note
+    // anywhere: the gap before it becomes a rest, and the note lands at the
+    // clicked position rather than stacking against the bar start.
+    const song = apply(guitarSong(), (d) => {
       const id = d.tracks[0]!.id;
-      expect(E.insertNoteAt(d, id, 0, F.EIGHTH, 0, 7, F.EIGHTH)).toBe(false);
-      expect(d.tracks[0]!.measures[0]!.beats.length).toBe(0); // untouched
+      expect(E.insertNoteAt(d, id, 0, F.HALF, 0, 7, F.EIGHTH)).toBe(true);
     });
+    const beats = measureOf(song).beats;
+    expect(beats.map((b) => F.toString(b.start))).toEqual(['0', '1/2']);
+    expect(beats.map((b) => b.notes.length)).toEqual([0, 1]); // rest, then the note
+    expect(F.toString(beats[1]!.duration)).toBe('1/8');
+  });
+});
+
+describe('insertDrumNoteAt', () => {
+  it('drops a 16th kick between two eighths by splitting the covered beat', () => {
+    const song = apply(drumSong(), (d) => {
+      const id = d.tracks[0]!.id;
+      E.toggleDrumNote(d, id, 0, 0, 'hihat', F.EIGHTH); // eighth at 0
+      E.toggleDrumNote(d, id, 0, 1, 'hihat', F.EIGHTH); // eighth at 1/8
+      // Insert a kick at 1/16, between the two hi-hats.
+      expect(E.insertDrumNoteAt(d, id, 0, F.SIXTEENTH, 'kick', F.SIXTEENTH)).toBe(true);
+    });
+    const beats = song.tracks[0]!.measures[0]!.beats;
+    expect(beats.map((b) => F.toString(b.start))).toEqual(['0', '1/16', '1/8']);
+    expect(beats[1]!.notes.map((n) => (n as { piece: string }).piece)).toEqual(['kick']);
+  });
+
+  it('gap-fills an empty drum bar so a hit lands where it was aimed', () => {
+    const song = apply(drumSong(), (d) => {
+      const id = d.tracks[0]!.id;
+      expect(E.insertDrumNoteAt(d, id, 0, F.QUARTER, 'snare', F.SIXTEENTH)).toBe(true);
+    });
+    const beats = song.tracks[0]!.measures[0]!.beats;
+    expect(beats.map((b) => F.toString(b.start))).toEqual(['0', '1/4']);
+    expect(beats.map((b) => b.notes.length)).toEqual([0, 1]); // rest, then the snare
   });
 });
 

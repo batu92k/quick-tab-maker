@@ -184,20 +184,70 @@ export function setNote(
 }
 
 /**
- * Places a note at an arbitrary position inside a bar, splitting the beat it
- * lands in — what clicking the sheet between two notes does.
+ * Places a note-bearing beat at an arbitrary position inside a bar.
  *
- * The beat covering `position` is cut there: its notes stay in the first part,
- * and a new beat carrying the note starts at `position`. The new note takes the
- * entry duration, clamped to the room left in the split beat so nothing
- * overflows or shifts its neighbours — a full bar simply subdivides, which is
- * the only way to fit another note into time already spoken for. Any remainder
- * becomes a rest.
+ * Two cases, both of which "clicking the sheet at a position" needs:
  *
- * Refuses when `position` is not strictly inside a beat: a position exactly on
- * an onset is an ordinary edit (the caller uses `setNote`), and one past the
- * last note is an append.
+ * - *Splitting*: the position lands strictly inside an existing beat. That beat
+ *   is cut there — its notes stay in the first part — and a new beat carrying
+ *   the note starts at `position`. A full bar simply subdivides, which is the
+ *   only way to fit another note into time already spoken for.
+ *
+ * - *Gap-filling*: the position is at or past the last beat's end — an empty
+ *   bar, or the empty tail of a partly-filled one. The gap up to the position
+ *   is filled with a rest, then the note beat is appended. This is what lets a
+ *   click land where it was aimed in a bar that has been cleared, instead of
+ *   stacking every note against the start.
+ *
+ * The note takes the entry duration, clamped to the room left before the next
+ * onset or the bar line, so nothing overflows or shifts its neighbours. Any
+ * remainder becomes a rest. Refuses a non-positive position or one at/past the
+ * bar's capacity; a position exactly on an onset is an ordinary edit the caller
+ * handles with `setNote`/`toggleDrumNote`, not a split.
  */
+function insertNoteBeat(
+  view: MeasureLike,
+  position: Fraction,
+  capacity: Fraction,
+  entryDuration: Fraction,
+  note: unknown,
+): boolean {
+  if (!F.isPositive(position) || F.gte(position, capacity)) return false;
+
+  const idx = view.beats.findIndex(
+    (b) => F.lt(b.start, position) && F.lt(position, F.add(b.start, b.duration)),
+  );
+
+  if (idx >= 0) {
+    const beat = view.beats[idx]!;
+    const oldEnd = F.add(beat.start, beat.duration);
+    const room = F.sub(oldEnd, position);
+    const newDur = F.min(entryDuration, room);
+    const restDur = F.sub(room, newDur);
+    beat.duration = F.sub(position, beat.start);
+    const inserted: BeatLike[] = [
+      createBeat(position, newDur, [note] as never[]) as unknown as BeatLike,
+    ];
+    if (F.isPositive(restDur)) {
+      inserted.push(createBeat(F.add(position, newDur), restDur) as unknown as BeatLike);
+    }
+    view.beats.splice(idx + 1, 0, ...inserted);
+  } else {
+    const end = usedTime(view);
+    if (F.lt(position, end)) return false; // an interior onset — nothing to split
+    const room = F.sub(capacity, position);
+    const newDur = F.min(entryDuration, room);
+    if (!F.isPositive(newDur)) return false;
+    if (F.isPositive(F.sub(position, end))) {
+      view.beats.push(createBeat(end, F.sub(position, end)) as unknown as BeatLike);
+    }
+    view.beats.push(createBeat(position, newDur, [note] as never[]) as unknown as BeatLike);
+  }
+  normalise(view);
+  return true;
+}
+
+/** Places a fret note at an arbitrary position — see {@link insertNoteBeat}. */
 export function insertNoteAt(
   song: D<Song>,
   trackId: Id,
@@ -212,30 +262,35 @@ export function insertNoteAt(
   if (!track || !measure) return false;
   if (stringIndex < 0 || stringIndex >= track.tuning.length) return false;
   if (fret < 0 || fret > track.fretCount) return false;
-  if (!F.isPositive(position)) return false;
 
-  const view = asMeasureLike(measure);
-  const idx = view.beats.findIndex(
-    (b) => F.lte(b.start, position) && F.lt(position, F.add(b.start, b.duration)),
-  );
-  if (idx < 0) return false; // past the last note, or out of range
-  const beat = view.beats[idx]!;
-  if (F.eq(beat.start, position)) return false; // exactly an onset — an edit, not a split
-
-  const oldEnd = F.add(beat.start, beat.duration);
-  const room = F.sub(oldEnd, position);
-  const newDur = F.min(entryDuration, room);
-  const restDur = F.sub(room, newDur);
-
-  beat.duration = F.sub(position, beat.start);
-
+  const capacity = measureCapacity(song as Song, track as StringTrack, measureIndex);
   const note: Note = { id: newNoteId(), string: stringIndex, fret, techniques: [] };
-  const inserted: BeatLike[] = [createBeat<Note>(position, newDur, [note]) as unknown as BeatLike];
-  if (F.isPositive(restDur)) {
-    inserted.push(createBeat(F.add(position, newDur), restDur) as unknown as BeatLike);
+  if (!insertNoteBeat(asMeasureLike(measure), position, capacity, entryDuration, note)) {
+    return false;
   }
-  view.beats.splice(idx + 1, 0, ...inserted);
-  normalise(view);
+  touch(song);
+  return true;
+}
+
+/** Places a drum hit at an arbitrary position — the drum twin of {@link insertNoteAt}. */
+export function insertDrumNoteAt(
+  song: D<Song>,
+  trackId: Id,
+  measureIndex: number,
+  position: Fraction,
+  piece: DrumPiece,
+  entryDuration: Fraction,
+  articulation: DrumArticulation = 'normal',
+): boolean {
+  const track = getDrumTrack(song, trackId);
+  const measure = track?.measures[measureIndex];
+  if (!track || !measure) return false;
+
+  const capacity = measureCapacity(song as Song, track as DrumTrack, measureIndex);
+  const note: DrumNote = { id: newNoteId(), piece, articulation };
+  if (!insertNoteBeat(asMeasureLike(measure), position, capacity, entryDuration, note)) {
+    return false;
+  }
   touch(song);
   return true;
 }

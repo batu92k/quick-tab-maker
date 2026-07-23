@@ -16,7 +16,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
 import { measureCapacity, snapPositionInMeasure } from '../model/song';
-import { isStringTrack, type Cursor, type Song } from '../model/types';
+import type { Cursor, Song } from '../model/types';
 import { Score } from './Score';
 import {
   cursorPosition,
@@ -143,7 +143,9 @@ export function ScoreView({
     (hit: HitResult, x: number): HitResult => {
       if (!snap) return hit;
       const track = song.tracks.find((t) => t.id === hit.trackId);
-      if (!track || !isStringTrack(track)) return hit;
+      // Both fretted and drum staves snap the same way — a drum hit belongs on
+      // the 16th between two eighths just as much as a fret note does.
+      if (!track) return hit;
       const measure = measureAt(layout, hit.trackId, hit.measureIndex);
       if (!measure) return hit;
 
@@ -152,20 +154,18 @@ export function ScoreView({
       const beats = measure.measure.beats;
       const snapped = snapPositionInMeasure(beats, capacity, snap, rawOffset);
 
+      // Landing on an existing onset edits it; the bar start of an empty bar and
+      // anything at/past the bar line are plain appends. Every other position —
+      // inside a note, or out in an empty stretch — becomes an insert, which the
+      // model places by splitting the covered beat or filling the gap with a
+      // rest. That is what lets a click land where it was aimed in a bar that
+      // was cleared, rather than every note stacking against the start.
       const onset = beats.findIndex((b) => F.eq(b.start, snapped));
       if (onset >= 0) return { ...hit, beatIndex: onset };
-
-      // Split only makes sense when the click lands strictly inside a note's
-      // span — there is a beat to cut in two. An empty bar or a gap past the
-      // last note has nothing to split, so the note appends at the end instead
-      // (the model forbids a leading rest, so the first note of a bar lands at
-      // its start). Without this, clicking an empty bar produced an insert the
-      // model could only refuse, and no note could be entered.
-      const covering = beats.findIndex(
-        (b) => F.lt(b.start, snapped) && F.lt(snapped, F.add(b.start, b.duration)),
-      );
-      if (covering >= 0) return { ...hit, beatIndex: beats.length, insertAt: snapped };
-      return { ...hit, beatIndex: beats.length };
+      if (F.isZero(snapped) || F.gte(snapped, capacity)) {
+        return { ...hit, beatIndex: beats.length };
+      }
+      return { ...hit, beatIndex: beats.length, insertAt: snapped };
     },
     [layout, snap, song],
   );

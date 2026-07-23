@@ -212,6 +212,35 @@ export function toggleDrumAtCursor(piece?: DrumPiece): boolean {
   const target = piece ?? defaultPieceForRow(cursor.line);
   if (!target) return false;
 
+  // An insert cursor drops the hit at a position between existing beats (a 16th
+  // between two eighths, say) by splitting or gap-filling, exactly as fret entry
+  // does. Landing on a position a beat already starts at is an ordinary toggle.
+  if (cursor.insertAt !== undefined) {
+    const position = cursor.insertAt;
+    const measure = track.measures[cursor.measureIndex];
+    const existing = measure ? beatIndexAtStart(measure, position) : -1;
+
+    let applied = false;
+    store().edit(`Toggle ${target}`, (draft) => {
+      applied =
+        existing >= 0
+          ? E.toggleDrumNote(draft, cursor.trackId, cursor.measureIndex, existing, target, entryDuration)
+          : E.insertDrumNoteAt(draft, cursor.trackId, cursor.measureIndex, position, target, entryDuration);
+    });
+    if (applied) {
+      store().setNotice(null);
+      const next = currentTrack();
+      const at =
+        next && isDrumTrack(next) && next.measures[cursor.measureIndex]
+          ? beatIndexAtStart(next.measures[cursor.measureIndex]!, position)
+          : -1;
+      if (at >= 0) store().setCursor({ ...cursor, beatIndex: at });
+    } else {
+      explainRefusedEntry(track, cursor.measureIndex);
+    }
+    return applied;
+  }
+
   let applied = false;
   store().edit(`Toggle ${target}`, (draft) => {
     applied = E.toggleDrumNote(
