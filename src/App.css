@@ -79,6 +79,13 @@ body {
   overflow-x: auto;
 }
 
+.qtm-aids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
 .qtm-hint {
   margin: 14px 2px 0;
   font-size: 0.78rem;

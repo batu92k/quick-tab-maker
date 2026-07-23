@@ -107,3 +107,37 @@
   fill: var(--qtm-text-muted);
   opacity: 0.35;
 }
+
+/* Scale guide. A green distinct from the accent blue used for played notes and
+   the hover preview, so the key's shape never reads as something sounding. */
+.qtm-fb-scale {
+  pointer-events: none;
+}
+
+.qtm-fb-scale--scale {
+  fill: #3a9e6a;
+  opacity: 0.45;
+}
+
+.qtm-fb-scale--root {
+  fill: none;
+  stroke: #2e8b57;
+  stroke-width: 2.5;
+}
+
+.qtm-fb-scale--chord {
+  fill: #2e8b57;
+  opacity: 0.85;
+}
+
+:root[data-theme='dark'] .qtm-fb-scale--scale {
+  fill: #52c98a;
+}
+
+:root[data-theme='dark'] .qtm-fb-scale--root {
+  stroke: #52c98a;
+}
+
+:root[data-theme='dark'] .qtm-fb-scale--chord {
+  fill: #52c98a;
+}

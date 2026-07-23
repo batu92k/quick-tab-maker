@@ -1,0 +1,192 @@
+/*
+ * Key & scale helper styling. Mirrors the instrument panel's card so the two
+ * sit together as a matched pair of aids below the score.
+ */
+
+.qtm-theory {
+  border: 1px solid var(--qtm-border);
+  border-radius: 10px;
+  background: var(--qtm-surface);
+  padding: 14px 16px;
+  font-family: var(--qtm-font-ui);
+  color: var(--qtm-text);
+  max-width: 520px;
+}
+
+.qtm-theory-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.qtm-theory-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.qtm-theory-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--qtm-text-muted);
+  user-select: none;
+  cursor: pointer;
+}
+
+.qtm-theory-key {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.qtm-theory-key label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-theory-key select {
+  font-family: var(--qtm-font-ui);
+  font-size: 13px;
+  padding: 4px 6px;
+  border: 1px solid var(--qtm-border);
+  border-radius: 6px;
+  background: var(--qtm-bg);
+  color: var(--qtm-text);
+}
+
+.qtm-theory-scale {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.qtm-theory-degree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 34px;
+  padding: 4px 6px;
+  border: 1px solid var(--qtm-border);
+  border-radius: 6px;
+  background: var(--qtm-bg);
+}
+
+.qtm-theory-degree--root {
+  border-color: #2e8b57;
+}
+
+.qtm-theory-degree-num {
+  font-size: 10px;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-theory-degree-note {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.qtm-theory-degree--root .qtm-theory-degree-note {
+  color: #2e8b57;
+}
+
+:root[data-theme='dark'] .qtm-theory-degree--root {
+  border-color: #52c98a;
+}
+
+:root[data-theme='dark'] .qtm-theory-degree--root .qtm-theory-degree-note {
+  color: #52c98a;
+}
+
+.qtm-theory-chords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.qtm-theory-chord {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 44px;
+  padding: 5px 8px;
+  border: 1px solid var(--qtm-border);
+  border-radius: 6px;
+  background: var(--qtm-bg);
+  color: var(--qtm-text);
+  cursor: pointer;
+  font-family: var(--qtm-font-ui);
+}
+
+.qtm-theory-chord:hover {
+  border-color: var(--qtm-accent);
+}
+
+.qtm-theory-chord--on {
+  background: #2e8b57;
+  border-color: #2e8b57;
+  color: #fff;
+}
+
+.qtm-theory-roman {
+  font-size: 11px;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-theory-chord--on .qtm-theory-roman {
+  color: rgb(255 255 255 / 85%);
+}
+
+.qtm-theory-symbol {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.qtm-theory-empty {
+  font-size: 12px;
+  color: var(--qtm-text-muted);
+  margin: 0 0 4px;
+}
+
+.qtm-theory-progressions h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qtm-text-muted);
+  margin: 0 0 8px;
+}
+
+.qtm-theory-progression {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.qtm-theory-prog-chord {
+  min-width: 34px;
+  padding: 4px 8px;
+  border: 1px solid var(--qtm-border);
+  border-radius: 6px;
+  background: var(--qtm-bg);
+  color: var(--qtm-text);
+  font-family: var(--qtm-font-ui);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.qtm-theory-prog-chord:hover {
+  border-color: var(--qtm-accent);
+}
+
+.qtm-theory-prog-chord--on {
+  background: #2e8b57;
+  border-color: #2e8b57;
+  color: #fff;
+}

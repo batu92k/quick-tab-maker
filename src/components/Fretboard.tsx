@@ -14,7 +14,7 @@
 
 import { memo, useMemo, useState } from 'react';
 import type { StringTrack } from '../model/types';
-import { midiToPitch, specOf, stringFretToMidi } from '../theory/midi';
+import { midiToPitch, midiToPitchClass, specOf, stringFretToMidi } from '../theory/midi';
 import './fretboard.css';
 
 /** Frets carrying position dots on a standard neck. */
@@ -39,6 +39,22 @@ export interface FretboardProps {
   maxFret?: number | undefined;
   /** Positions from the score to show on the neck, for practising a shape. */
   marks?: readonly FretboardMark[] | undefined;
+  /**
+   * Faint highlight of the current key's scale across the whole neck: every
+   * in-scale position, with the tonic and any selected chord's tones standing
+   * out. Purely a guide — it sits behind the sounding `marks` and the hover
+   * preview so it never obscures what the player is actually doing.
+   */
+  scale?: ScaleOverlay | null | undefined;
+}
+
+export interface ScaleOverlay {
+  /** Pitch classes 0–11 that belong to the scale. */
+  readonly pitchClasses: readonly number[];
+  /** Pitch class of the tonic, drawn as the root. */
+  readonly root: number;
+  /** Pitch classes of a selected chord's tones, drawn strongest. */
+  readonly chord?: readonly number[] | undefined;
 }
 
 const NUT_WIDTH = 8;
@@ -59,6 +75,7 @@ export const Fretboard = memo(function Fretboard({
   activeString,
   maxFret,
   marks = [],
+  scale,
 }: FretboardProps) {
   const [hover, setHover] = useState<{ string: number; fret: number } | null>(null);
 
@@ -80,6 +97,24 @@ export const Fretboard = memo(function Fretboard({
 
   const noteName = (stringIndex: number, fret: number): string =>
     midiToPitch(stringFretToMidi(spec, stringIndex, fret)).replace(/\d+$/, '');
+
+  // Every in-scale position on the neck, classified for styling. Recomputed only
+  // when the key, tuning or drawn range changes — not on the playhead's frame.
+  const scaleCells = useMemo(() => {
+    if (!scale) return [];
+    const inScale = new Set(scale.pitchClasses);
+    const inChord = new Set(scale.chord ?? []);
+    const cells: { string: number; fret: number; kind: 'root' | 'chord' | 'scale' }[] = [];
+    for (let s = 0; s < stringCount; s++) {
+      for (let f = 0; f <= fretCount; f++) {
+        const pc = midiToPitchClass(stringFretToMidi(spec, s, f));
+        if (!inScale.has(pc) && !inChord.has(pc)) continue;
+        const kind = inChord.has(pc) ? 'chord' : pc === scale.root ? 'root' : 'scale';
+        cells.push({ string: s, fret: f, kind });
+      }
+    }
+    return cells;
+  }, [scale, spec, stringCount, fretCount]);
 
   return (
     <div className="qtm-fretboard-wrap">
@@ -193,6 +228,19 @@ export const Fretboard = memo(function Fretboard({
               {pitch.replace(/\d+$/, '')}
             </text>
           </g>
+        ))}
+
+        {/* Scale guide, behind everything interactive. Roots are ringed, chord
+            tones filled solid, plain scale tones faint, so the eye reads the
+            key's shape without mistaking it for a note that is actually played. */}
+        {scaleCells.map((cell) => (
+          <circle
+            key={`sc${cell.string}-${cell.fret}`}
+            className={`qtm-fb-scale qtm-fb-scale--${cell.kind}`}
+            cx={cellX(cell.fret)}
+            cy={stringY(cell.string)}
+            r={cell.kind === 'scale' ? 4.5 : 8}
+          />
         ))}
 
         {/* Notes sounding at the cursor's beat.

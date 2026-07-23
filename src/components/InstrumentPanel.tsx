@@ -22,12 +22,17 @@ import { useSongStore } from '../store/songStore';
 import { rowForPiece } from '../theory/drums';
 import { DRUM_PIECE_TO_GM, midiToPitch, specOf, stringFretToMidi } from '../theory/midi';
 import { DrumKit } from './DrumKit';
-import { Fretboard } from './Fretboard';
+import { Fretboard, type ScaleOverlay } from './Fretboard';
 import './instrument-panel.css';
 
 const FLASH_MS = 140;
 
-export function InstrumentPanel() {
+export interface InstrumentPanelProps {
+  /** Scale guide to paint on the fretboard, from the key & scale helper. */
+  scale?: ScaleOverlay | null | undefined;
+}
+
+export function InstrumentPanel({ scale }: InstrumentPanelProps = {}) {
   const song = useSongStore((s) => s.song);
   const cursor = useSongStore((s) => s.cursor);
   const playhead = usePlaybackStore((s) => s.position);
@@ -134,6 +139,7 @@ export function InstrumentPanel() {
           onPick={handlePick}
           activeString={following ? undefined : C.stringForLine(track, cursor.line)}
           marks={marks}
+          scale={scale}
         />
         {names.length > 0 && (
           <p className="qtm-instrument-note">

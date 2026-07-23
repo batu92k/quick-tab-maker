@@ -20,6 +20,7 @@ import {
   type Cursor,
   type DrumPiece,
   type Note,
+  type Song,
   type Track,
 } from '../model/types';
 import { defaultPieceForRow, rowForPiece, DRUM_ROW_COUNT } from '../theory/drums';
@@ -422,6 +423,13 @@ export function setTempo(bpm: number): boolean {
   });
   if (!applied) store().setNotice(`${Math.round(bpm)} BPM is outside the usable range.`);
   return applied;
+}
+
+/** Sets the song's key, which drives the scale and chord helper. */
+export function setKey(key: Song['key']): void {
+  store().edit('Key', (draft) => {
+    E.setKey(draft, key);
+  });
 }
 
 /** Adjusts one track's mixer settings. */
