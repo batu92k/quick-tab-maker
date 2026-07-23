@@ -82,11 +82,8 @@ export const DEFAULT_LAYOUT_OPTIONS: LayoutOptions = {
   systemGap: 60,
   labelWidth: 44,
   minMeasureWidth: 90,
-  // Per-onset floor so a dense bar widens rather than collapsing.
   beatBaseWidth: 22,
-  // Width of one whole note of time. Bars are spaced by the clock, so this sets
-  // the width of a full bar and, proportionally, of every note in it.
-  beatDurationWidth: 260,
+  beatDurationWidth: 90,
   measurePadding: 12,
   fontSize: 11,
   stemHeight: 18,
@@ -216,6 +213,10 @@ const ANNOTATION_LANE = 3.5;
 /* Measurement                                                                */
 /* -------------------------------------------------------------------------- */
 
+function beatWidth(duration: Fraction, o: LayoutOptions): number {
+  return o.beatBaseWidth + o.beatDurationWidth * F.toNumber(duration);
+}
+
 /** Whether another note could still be added to this bar. */
 export function hasRoomToAppend(song: Song, track: Track, measureIndex: number): boolean {
   const measure = track.measures[measureIndex];
@@ -283,18 +284,27 @@ export function measureGrid(song: Song, measureIndex: number, o: LayoutOptions):
   add(barCapacity(song, measureIndex));
 
   const positions = [...seen.values()].sort(F.cmp);
-  const capacity = F.toNumber(positions[positions.length - 1] ?? F.ONE);
+  const xs: number[] = [0];
+  for (let i = 1; i < positions.length; i++) {
+    xs.push(xs[i - 1]! + beatWidth(F.sub(positions[i]!, positions[i - 1]!), o));
+  }
+  return { positions, xs, width: xs[xs.length - 1] ?? 0 };
+}
 
-  // Time-based spacing: x is proportional to musical time. Every subdivision is
-  // then evenly placed and the playhead sits exactly where its tick is, note or
-  // no note — which is the whole reason for spacing by the clock rather than by
-  // rhythm. A per-onset floor keeps a dense bar from collapsing: the bar simply
-  // grows wider, uniformly, so the positions stay linear in time.
-  const linear = o.beatDurationWidth * capacity;
-  const floor = o.beatBaseWidth * Math.max(1, positions.length - 1);
-  const width = Math.max(linear, floor);
-  const xs = positions.map((p) => (capacity > 0 ? (F.toNumber(p) / capacity) * width : 0));
-  return { positions, xs, width };
+/**
+ * Half the column that starts at grid index `i`.
+ *
+ * Notes are drawn at their onset plus this, rather than at the centre of their
+ * own duration. Centring is what breaks alignment: a quarter centred over its
+ * own span sits between the two eighths it should be lining up with. Offsetting
+ * every track by the same first-column half keeps a column a column.
+ */
+function halfColumn(grid: MeasureGrid, i: number): number {
+  const next = grid.xs[i + 1];
+  // The final position is the bar's end, which no note can start at. It gets no
+  // offset, so it lands on the content edge instead of overshooting the bar
+  // line by half a column and dragging the playhead out of its own measure.
+  return next === undefined ? 0 : (next - grid.xs[i]!) / 2;
 }
 
 /**
@@ -366,16 +376,20 @@ function layoutMeasure(
   // Scaling every column equally preserves their relative spacing, so a bar of
   // eighths still reads as evenly spaced and a dotted note still looks longer
   // than the note after it.
-  // With time-based spacing an onset's x *is* its time position, so a note sits
-  // exactly where its subdivision tick and the playhead fall — no centring
-  // offset, which is what used to slide the two apart. `columnAt` is kept as an
-  // alias so the rest of the function reads unchanged.
   const edgeAt = (i: number): number => contentLeft + grid.xs[i]! * scale;
-  const columnAt = edgeAt;
+  const columnAt = (i: number): number => edgeAt(i) + halfColumn(grid, i) * scale;
+
+  // A bar no track has played into has a degenerate grid — just [start, end] —
+  // so beat 0's "column" is the whole bar and centring it (below) would drop the
+  // downbeat in the middle. The ruler then interpolates every tick into the
+  // right half and the playhead sweeps only that half. With nothing to align to,
+  // the time axis is anchored to the bar's edges instead, so ticks and playhead
+  // spread evenly across it. Any bar with notes keeps the note-centred columns.
+  const emptyBar = grid.positions.length === 2;
 
   const columns: MeasureColumn[] = grid.positions.map((position, i) => ({
     at: F.toNumber(position),
-    x: columnAt(i),
+    x: emptyBar ? edgeAt(i) : columnAt(i),
   }));
 
   // Resolved once for the bar, not per beat: the fretboard spec is the same for
@@ -718,12 +732,14 @@ export interface PlayheadGeometry {
 /**
  * Horizontal position of a musical offset inside a laid-out bar.
  *
- * The bar is spaced by clock time, so x is linear in the offset and every
- * subdivision lands at an even distance — a click's tick and the playhead that
- * follows it are the same place, note or no note. Interpolating across the
- * shared column grid (rather than recomputing from time) keeps this exact even
- * when a system is stretched to justify, and means landing on a column lands on
- * every track's note at that instant.
+ * Interpolated across the bar's shared onset grid rather than linearly across
+ * its width, because bar width is only *partly* proportional to duration — that
+ * is a deliberate layout choice, and a playhead that ignores it slides off the
+ * notes it is supposed to be sounding. Between two onsets the motion is linear,
+ * which is correct: nothing happens between two attacks.
+ *
+ * Because the grid is shared, landing on a column means landing on every
+ * track's note at that instant, not just the top staff's.
  */
 export function offsetToX(measure: LaidOutMeasure, offset: number): number {
   const columns = measure.columns;
