@@ -65,7 +65,12 @@ what is on screen.
 - a measure's beats are sorted and sit back-to-back from zero, with no trailing rests
 - a measure never exceeds its time signature's capacity
 - at most one note per string per beat
-- measures are inserted/deleted across *all* tracks so bars stay aligned
+- measures are *inserted* across all tracks so new bars stay aligned; *deletion*
+  is per-track (`deleteMeasure(song, trackId, index)`), so tracks may differ in
+  length and a shorter one falls silent for the extra bars. `clearMeasure` empties
+  a bar in place when alignment must be kept. Layout (`barCount = max`) and the
+  scheduler both key off each track's own measures, so ragged lengths need no
+  special handling there.
 - marker lists stay sorted, deduplicated, and always have a bar-0 entry
 
 ## Testing
