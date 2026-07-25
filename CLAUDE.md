@@ -34,6 +34,7 @@ src/
   editor/     cursor, keymap, input sources
   components/ fretboard, drum kit, transport, panels
   settings/   per-device preferences (theme, fonts, layout), localStorage-backed
+  library/    song list / manager (create, open, rename, delete, import, export)
   export/     PDF
 ```
 
@@ -73,6 +74,18 @@ jsPDF's built-in `courier`/`helvetica` (svg2pdf can't render an unregistered
 font — glyphs come out as empty boxes). Print metrics are compact but keep
 `lineSpacing > 1.24 × fontSize`, or stacked chord digits clip each other. The
 whole module is imported dynamically so jspdf/svg2pdf never touch startup.
+
+**Song-management operations that can touch the open document live on the
+store; the rest live in `library/`.** Open, rename and delete go through
+`songStore` because they must reconcile the in-memory document, its undo history
+and the autosaver — e.g. deleting the open song tears the autosaver down first
+so a pending write can't resurrect it, then opens the next most-recent. Create,
+duplicate, import and export never touch the open song, so they are plain
+functions over `store/persistence` and `model/serialize` in `library/library.ts`.
+The list is always re-read from IndexedDB after a change rather than patched in
+place, so it cannot drift from what is stored. Launch opens the most-recent song
+(seeding the demo on first run); the library is a full-screen view reached from
+the header, not a route.
 
 **Appearance is CSS custom properties, not React state.** The palette and fonts
 live as `--qtm-*` tokens (`render/score.css`); `settings/settings.ts`

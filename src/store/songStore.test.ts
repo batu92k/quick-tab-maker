@@ -238,6 +238,31 @@ describe('duplicateSong', () => {
   });
 });
 
+describe('newSong', () => {
+  it('opens a blank guitar, bass and drums project', async () => {
+    const song = await store().newSong();
+
+    expect(store().song).toBe(song);
+    expect(song.tracks.map((t) => t.kind)).toEqual(['guitar', 'bass', 'drums']);
+    // A fresh project starts with no notes anywhere.
+    expect(song.tracks.every((t) => t.measures.every((m) => m.beats.length === 0))).toBe(true);
+    expect(store().past).toHaveLength(0);
+  });
+});
+
+describe('renameSong', () => {
+  it('renames the open song in place, trimming and defaulting a blank title', async () => {
+    const song = openTestSong();
+    await store().renameSong(song.id, '  Riff One  ', '  Me  ');
+
+    expect(store().song!.title).toBe('Riff One');
+    expect(store().song!.artist).toBe('Me');
+
+    await store().renameSong(song.id, '   ', '');
+    expect(store().song!.title).toBe('Untitled Song');
+  });
+});
+
 describe('edit coalescing', () => {
   it('folds same-key edits into one undo step', () => {
     openTestSong();

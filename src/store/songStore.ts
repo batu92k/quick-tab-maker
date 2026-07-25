@@ -12,12 +12,15 @@ import { create } from 'zustand';
 import * as F from './../model/fraction';
 import type { Fraction } from './../model/fraction';
 import { cloneSong } from '../model/serialize';
-import { createSong } from '../model/song';
+import { createDrumTrack, createSong, createStringTrack } from '../model/song';
 import { newSongId } from '../model/ids';
 import type { Cursor, Id, Song } from '../model/types';
 import { DRUM_ROW_COUNT } from '../theory/drums';
 import {
   createAutosaver,
+  deleteSong as dbDeleteSong,
+  loadSong,
+  mostRecentSongId,
   saveSong,
   type AutosaveStatus,
   type Autosaver,
@@ -66,9 +69,16 @@ export interface EditorState {
 
   /* Document lifecycle */
   openSong: (song: Song) => void;
-  newSong: () => void;
+  /** Loads a saved song by id and opens it, flushing the current one first. */
+  openById: (id: string) => Promise<void>;
+  /** Creates a fresh guitar/bass/drums song, saves and opens it. */
+  newSong: () => Promise<Song>;
   closeSong: () => Promise<void>;
   duplicateSong: () => Song | null;
+  /** Renames a song by id; updates the open document in place when it matches. */
+  renameSong: (id: string, title: string, artist: string) => Promise<void>;
+  /** Deletes a song by id; if it was open, opens the next most-recent instead. */
+  deleteSongById: (id: string) => Promise<void>;
 
   /* Editing */
   edit: (label: string, recipe: (draft: Draft<Song>) => void, coalesceKey?: string) => void;
@@ -131,14 +141,26 @@ export const useSongStore = create<EditorState>((set, get) => ({
     });
   },
 
-  newSong() {
-    const song = createSong();
-    get().openSong(song);
-    // Persist immediately so a new song survives a reload even if the user
-    // never types anything, which is what makes the song list trustworthy.
-    void saveSong(song).catch((error) => {
-      console.error('[store] Failed to save new song', error);
+  async openById(id) {
+    // Save whatever is open before swapping it out, so switching songs never
+    // drops the last few edits sitting in the autosave debounce window.
+    await getAutosaver().flush();
+    const song = await loadSong(id);
+    if (song) get().openSong(song);
+  },
+
+  async newSong() {
+    await getAutosaver().flush();
+    // A blank project still gets the full band, since there is no add-track UI
+    // yet and an empty song can otherwise only ever be a guitar part.
+    const song = createSong({
+      tracks: [createStringTrack('guitar'), createStringTrack('bass'), createDrumTrack()],
     });
+    get().openSong(song);
+    // Persist immediately so a new song survives a reload even if the user never
+    // types anything, which is what makes the song list trustworthy.
+    await saveSong(song);
+    return song;
   },
 
   async closeSong() {
@@ -159,6 +181,43 @@ export const useSongStore = create<EditorState>((set, get) => ({
     };
     void saveSong(copy).catch((error) => console.error('[store] Failed to save copy', error));
     return copy;
+  },
+
+  async renameSong(id, title, artist) {
+    const cleanTitle = title.trim() || 'Untitled Song';
+    const cleanArtist = artist.trim();
+    const now = new Date().toISOString();
+    const open = get().song;
+    if (open?.id === id) {
+      // Flush pending edits first so a debounced autosave of the pre-rename song
+      // cannot fire afterwards and clobber the new name.
+      await getAutosaver().flush();
+      const updated: Song = { ...open, title: cleanTitle, artist: cleanArtist, updatedAt: now };
+      set({ song: updated });
+      await saveSong(updated);
+    } else {
+      const song = await loadSong(id);
+      if (!song) return;
+      await saveSong({ ...song, title: cleanTitle, artist: cleanArtist, updatedAt: now });
+    }
+  },
+
+  async deleteSongById(id) {
+    const wasOpen = get().song?.id === id;
+    // Tear the autosaver down before deleting the open song, or its pending
+    // write would resurrect the record we just removed. A fresh one is created
+    // lazily on the next edit.
+    if (wasOpen) {
+      autosaver?.dispose();
+      autosaver = null;
+    }
+    await dbDeleteSong(id);
+    if (!wasOpen) return;
+
+    const nextId = await mostRecentSongId();
+    const next = nextId ? await loadSong(nextId) : undefined;
+    if (next) get().openSong(next);
+    else await get().newSong();
   },
 
   /* ---------------------------------------------------------------------- */

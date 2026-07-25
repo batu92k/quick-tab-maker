@@ -18,6 +18,7 @@ import { EditorToolbar } from './editor/EditorToolbar';
 import { Notice } from './editor/Notice';
 import { ShortcutSheet } from './editor/ShortcutSheet';
 import { useEditorKeyboard } from './editor/useEditorKeyboard';
+import { SongLibrary } from './library/SongLibrary';
 import { demoSong } from './model/fixtures';
 import { ScoreView } from './render/ScoreView';
 import { DEFAULT_LAYOUT_OPTIONS, type HitResult, type LayoutOptions } from './render/layout';
@@ -25,9 +26,12 @@ import { PdfExportDialog } from './settings/PdfExportDialog';
 import { SettingsDrawer } from './settings/SettingsDrawer';
 import { applyAppearance } from './settings/settings';
 import { useSettingsStore } from './settings/settingsStore';
+import { isAvailable, listSongs, loadSong, mostRecentSongId, saveSong } from './store/persistence';
 import { usePlaybackStore } from './store/playbackStore';
 import { useSongStore } from './store/songStore';
 import './App.css';
+
+type View = 'editor' | 'library';
 
 function App() {
   const song = useSongStore((s) => s.song);
@@ -40,6 +44,7 @@ function App() {
   const scrubTo = usePlaybackStore((s) => s.scrubTo);
 
   const settings = useSettingsStore();
+  const [view, setView] = useState<View>('editor');
   const [showSettings, setShowSettings] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showScale, setShowScale] = useState(false);
@@ -50,13 +55,42 @@ function App() {
   // blur so the same box is not re-focused on later renders.
   const [autoFocusAnnotation, setAutoFocusAnnotation] = useState<string | undefined>(undefined);
 
-  useEditorKeyboard(true);
+  // The editor's global key handler is silenced while the library is up, so its
+  // inputs (rename fields, the file picker) are not read as fret entry.
+  useEditorKeyboard(view === 'editor');
 
   useEffect(() => {
-    // Load the demo song on first run so there is something to edit before the
-    // song manager exists. Phase 9 replaces this with the real song list.
-    if (!song) openSong(demoSong());
-  }, [song, openSong]);
+    // Open the most recently edited song on launch. On the very first run there
+    // is nothing stored, so the demo is seeded as a starting point; if the
+    // browser has no IndexedDB at all, the demo is opened unsaved so the editor
+    // still works.
+    let cancelled = false;
+    void (async () => {
+      if (useSongStore.getState().song) return;
+      try {
+        if (!(await isAvailable())) {
+          if (!cancelled) openSong(demoSong());
+          return;
+        }
+        const summaries = await listSongs();
+        if (summaries.length === 0) {
+          const demo = demoSong();
+          if (!cancelled) openSong(demo);
+          await saveSong(demo);
+        } else {
+          const id = await mostRecentSongId();
+          const recent = id ? await loadSong(id) : undefined;
+          if (!cancelled && recent) openSong(recent);
+        }
+      } catch (error) {
+        console.error('[app] Could not open a song on launch', error);
+        if (!cancelled) openSong(demoSong());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [openSong]);
 
   // Apply every appearance preference to the document root as CSS tokens. One
   // effect covers theme, accent and fonts because they all resolve to custom
@@ -176,6 +210,10 @@ function App() {
     };
   }, [song, showScale, selectedChord]);
 
+  if (view === 'library') {
+    return <SongLibrary currentSongId={song?.id ?? null} onClose={() => setView('editor')} />;
+  }
+
   return (
     <div className="qtm-app">
       <header className="qtm-header">
@@ -191,6 +229,9 @@ function App() {
           )}
         </div>
         <div className="qtm-header-actions">
+          <button type="button" className="qtm-button" onClick={() => setView('library')}>
+            ☰ Songs
+          </button>
           <button
             type="button"
             className="qtm-button"

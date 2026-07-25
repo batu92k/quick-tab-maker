@@ -1,0 +1,184 @@
+/* Song library — the home screen. Reuses the shell's tokens and .qtm-button. */
+
+.qtm-library {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 28px 24px 48px;
+}
+
+.qtm-library-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.qtm-library-header h1 {
+  margin: 0;
+  font-size: 1.3rem;
+  letter-spacing: -0.01em;
+}
+
+.qtm-library-sub {
+  margin: 3px 0 0;
+  font-size: 0.82rem;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-library-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.qtm-library-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: #b4231a;
+  background: rgb(224 74 74 / 10%);
+  border: 1px solid rgb(224 74 74 / 35%);
+  border-radius: 8px;
+}
+
+.qtm-library-error button {
+  padding: 2px 6px;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.qtm-library-empty {
+  padding: 48px 0;
+  text-align: center;
+}
+
+.qtm-library-empty p {
+  margin: 4px 0;
+}
+
+.qtm-song-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.qtm-song-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  background: var(--qtm-bg);
+  border: 1px solid var(--qtm-border);
+  border-radius: 10px;
+}
+
+.qtm-song-card--current {
+  border-color: var(--qtm-accent);
+  box-shadow: inset 3px 0 0 var(--qtm-accent);
+}
+
+.qtm-song-info {
+  min-width: 0;
+}
+
+.qtm-song-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 0;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--qtm-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.qtm-song-title:hover {
+  color: var(--qtm-accent);
+}
+
+.qtm-song-badge {
+  padding: 1px 7px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--qtm-accent);
+  border-radius: 999px;
+}
+
+.qtm-song-meta {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-song-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.qtm-song-confirm {
+  font-size: 0.85rem;
+  color: var(--qtm-text);
+}
+
+.qtm-song-rename {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.qtm-input {
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--qtm-text);
+  background: var(--qtm-surface);
+  border: 1px solid var(--qtm-border);
+  border-radius: 7px;
+}
+
+.qtm-input:focus-visible {
+  outline: 2px solid var(--qtm-accent);
+  outline-offset: 1px;
+}
+
+.qtm-button--danger:hover:not(:disabled) {
+  color: #fff;
+  background: #d0342c;
+  border-color: #d0342c;
+}
+
+.qtm-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
