@@ -5,7 +5,7 @@
  * fall out of date with the real bindings.
  */
 
-import { useEffect } from 'react';
+import { useDialogA11y } from '../components/useDialogA11y';
 import { bindingsByGroup, describeBinding } from './keymap';
 import './shortcuts.css';
 
@@ -14,19 +14,14 @@ export interface ShortcutSheetProps {
 }
 
 export function ShortcutSheet({ onClose }: ShortcutSheetProps) {
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
+  const dialogRef = useDialogA11y<HTMLDivElement>(onClose);
   const groups = [...bindingsByGroup()];
 
   return (
     <div className="qtm-modal-backdrop" onClick={onClose} role="presentation">
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className="qtm-modal"
         role="dialog"
         aria-modal="true"

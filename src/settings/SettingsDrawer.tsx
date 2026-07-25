@@ -7,7 +7,7 @@
  * drawer has no local state of its own — what you see is the store.
  */
 
-import { useEffect } from 'react';
+import { useDialogA11y } from '../components/useDialogA11y';
 import {
   ACCENTS,
   BARS_PER_LINE,
@@ -42,14 +42,7 @@ export function SettingsDrawer({ onClose }: SettingsDrawerProps) {
   const settings = useSettingsStore();
   const update = useSettingsStore((s) => s.update);
   const reset = useSettingsStore((s) => s.reset);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  const dialogRef = useDialogA11y<HTMLElement>(onClose);
 
   const uiStep = stepId(settings.uiScale);
   const tabStep = stepId(settings.tabScale);
@@ -57,6 +50,8 @@ export function SettingsDrawer({ onClose }: SettingsDrawerProps) {
   return (
     <div className="qtm-drawer-backdrop" onClick={onClose} role="presentation">
       <aside
+        ref={dialogRef}
+        tabIndex={-1}
         className="qtm-drawer"
         role="dialog"
         aria-modal="true"

@@ -447,6 +447,39 @@ export interface ScoreProps {
   className?: string | undefined;
 }
 
+/**
+ * The staves themselves, split out and memoised.
+ *
+ * The playhead advances sixty times a second, which re-renders `Score` on every
+ * frame. Without this boundary that would re-run the whole systems map each
+ * time; on a long song that is the difference between smooth playback and a
+ * stutter. The systems depend only on the layout and the ruler grid, neither of
+ * which changes while playing, so `memo` lets the frame skip them entirely.
+ */
+const Systems = memo(function Systems({
+  layout,
+  rulerSub,
+}: {
+  layout: Layout;
+  rulerSub: number | undefined;
+}) {
+  const { options } = layout;
+  return (
+    <>
+      {layout.systems.map((system, i) => (
+        <g key={i} className="qtm-system">
+          {system.staves.map((staff) => (
+            <Staff key={staff.track.id} staff={staff} system={system} options={options} />
+          ))}
+          {rulerSub !== undefined && (
+            <SystemRuler system={system} options={options} sub={rulerSub} />
+          )}
+        </g>
+      ))}
+    </>
+  );
+});
+
 export function Score({
   layout,
   cursor,
@@ -471,16 +504,7 @@ export function Score({
       role="img"
       aria-label="Tab score"
     >
-      {layout.systems.map((system, i) => (
-        <g key={i} className="qtm-system">
-          {system.staves.map((staff) => (
-            <Staff key={staff.track.id} staff={staff} system={system} options={options} />
-          ))}
-          {rulerSub !== undefined && (
-            <SystemRuler system={system} options={options} sub={rulerSub} />
-          )}
-        </g>
-      ))}
+      <Systems layout={layout} rulerSub={rulerSub} />
 
       {/* Under the caret: while playing, the editing position still matters. */}
       {playhead && (

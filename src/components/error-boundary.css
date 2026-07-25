@@ -1,0 +1,51 @@
+.qtm-crash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--qtm-surface);
+}
+
+.qtm-crash-box {
+  max-width: 460px;
+  padding: 28px 30px;
+  background: var(--qtm-bg);
+  border: 1px solid var(--qtm-border);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 20%);
+}
+
+.qtm-crash-box h1 {
+  margin: 0 0 10px;
+  font-size: 1.15rem;
+}
+
+.qtm-crash-box p {
+  margin: 0 0 18px;
+  font-size: 0.9rem;
+  color: var(--qtm-text-muted);
+  line-height: 1.5;
+}
+
+/* Self-contained so the recovery screen renders correctly even if the crash
+   happened before another component's stylesheet loaded. */
+.qtm-crash .qtm-button--primary {
+  color: #fff;
+  background: var(--qtm-accent);
+  border-color: var(--qtm-accent);
+}
+
+.qtm-crash-detail {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  max-height: 160px;
+  overflow: auto;
+  font-family: var(--qtm-font-tab);
+  font-size: 0.75rem;
+  color: var(--qtm-text-muted);
+  background: var(--qtm-surface);
+  border: 1px solid var(--qtm-border);
+  border-radius: 8px;
+  white-space: pre-wrap;
+}

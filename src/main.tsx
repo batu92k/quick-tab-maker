@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './settings/fonts'
 import './index.css'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { applyAppearance } from './settings/settings'
 import { useSettingsStore } from './settings/settingsStore'
 
@@ -12,6 +13,8 @@ applyAppearance(useSettingsStore.getState(), document.documentElement)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )

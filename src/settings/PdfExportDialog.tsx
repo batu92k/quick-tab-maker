@@ -7,7 +7,7 @@
  * store, so the last choices are remembered for next time.
  */
 
-import { useEffect } from 'react';
+import { useDialogA11y } from '../components/useDialogA11y';
 import { PAPER_OPTIONS, PDF_BARS_PER_LINE, type PageOrientation } from './settings';
 import { useSettingsStore } from './settingsStore';
 import './settings.css';
@@ -27,18 +27,16 @@ const ORIENTATIONS: { value: PageOrientation; label: string }[] = [
 export function PdfExportDialog({ onClose, onExport, exporting }: PdfExportDialogProps) {
   const settings = useSettingsStore();
   const update = useSettingsStore((s) => s.update);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape' && !exporting) onClose();
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose, exporting]);
+  // Ignore a close request while an export is in flight.
+  const dialogRef = useDialogA11y<HTMLDivElement>(() => {
+    if (!exporting) onClose();
+  });
 
   return (
     <div className="qtm-modal-backdrop" onClick={() => !exporting && onClose()} role="presentation">
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className="qtm-export-dialog"
         role="dialog"
         aria-modal="true"
