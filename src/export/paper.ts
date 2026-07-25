@@ -90,10 +90,14 @@ export function printLayoutOptions(
     lineSpacing: 12,
     stemHeight: 13,
     trackGap: 18,
-    systemGap: 22,
+    systemGap: 24,
     minMeasureWidth: 66,
     beatBaseWidth: 18,
     beatDurationWidth: 54,
+    // Text notes sit just above the staff — the on-screen lane clears a scrub
+    // ruler that the print does not have, and its full height would reach up
+    // into the previous system across the tighter print gap.
+    annotationLane: 1.8,
     ...extra,
   };
 }

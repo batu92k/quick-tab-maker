@@ -79,6 +79,12 @@ export interface LayoutOptions {
    * width-driven wrap and the cap when set.
    */
   readonly barsPerSystem?: number;
+  /**
+   * Height of the text-note lane above the top staff, in line spacings.
+   * Defaults to `ANNOTATION_LANE`; the PDF sets it lower because its systems sit
+   * closer together and there is no scrub ruler to clear.
+   */
+  readonly annotationLane?: number;
 }
 
 /** Floor on the justify scale, so a forced-bar row never collapses to a smear. */
@@ -225,6 +231,12 @@ export interface Layout {
  * never rides into the ruler line and a text note never overlaps a tick.
  */
 const RULER_LANE = 2.1;
+/**
+ * Default height of the text-note lane, in line spacings above the top staff.
+ * Sized to clear the scrub ruler on screen; the PDF has no ruler and a tighter
+ * system gap, so it overrides this with a smaller value (see `annotationLane`)
+ * to keep notes from riding up into the staff above.
+ */
 const ANNOTATION_LANE = 3.5;
 
 /* -------------------------------------------------------------------------- */
@@ -610,7 +622,7 @@ function layoutAnnotations(
         out.push({
           annotation,
           x: offsetToX(measure, F.toNumber(annotation.offset)),
-          y: system.y - o.lineSpacing * ANNOTATION_LANE,
+          y: system.y - o.lineSpacing * (o.annotationLane ?? ANNOTATION_LANE),
           systemIndex: si,
         });
       }

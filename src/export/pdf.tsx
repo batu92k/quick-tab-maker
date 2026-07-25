@@ -109,6 +109,14 @@ function inlineStylesForPdf(root: SVGSVGElement): void {
       family.includes('mono') || family.includes('jetbrains') || family.includes('courier');
     el.style.setProperty('font-family', monospaced ? 'courier' : 'helvetica');
   }
+
+  // The rhythm stems are 1pt, the same as a staff line, but a short vertical
+  // mark reads far heavier than a long thin rule — and the screen shows the tab
+  // larger, so its 1px stems look finer than 1pt does on the smaller print.
+  // Thin them to a hairline so they match the on-screen weight.
+  for (const line of Array.from(root.querySelectorAll('.qtm-stem line'))) {
+    (line as SVGElement).style.setProperty('stroke-width', '0.5');
+  }
 }
 
 function drawChrome(
