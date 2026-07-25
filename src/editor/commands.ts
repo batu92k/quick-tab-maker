@@ -556,7 +556,12 @@ export function addAnnotationAtCursor(): string | null {
 
   const bar = cursor?.measureIndex ?? 0;
   const track = currentTrack();
-  const offset = cursor && track?.measures[bar]?.beats[cursor.beatIndex]?.start;
+  // Anchor the note where the cursor actually is. On an empty spot the cursor
+  // carries its position in `insertAt` and there is no beat to read a start
+  // from, so that has to win — otherwise a note dropped on a rest or a gap
+  // snaps back to the downbeat instead of staying where it was placed.
+  const beatStart = cursor && track?.measures[bar]?.beats[cursor.beatIndex]?.start;
+  const offset = cursor?.insertAt ?? beatStart ?? F.ZERO;
   const id = newAnnotationId();
   // The add and the typing that follows share a coalesce key, so placing a note
   // and writing it is a single undo step: one press of undo removes the note.

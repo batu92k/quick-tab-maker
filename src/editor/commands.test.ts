@@ -354,3 +354,31 @@ describe('structure', () => {
     expect(guitar().measures).toHaveLength(4);
   });
 });
+
+describe('text annotations', () => {
+  it('anchors a note at an empty spot to the cursor position, not the downbeat', () => {
+    open();
+    // Cursor on a gap: no beat at this index, position carried in insertAt.
+    store().setCursor({
+      trackId: guitar().id,
+      measureIndex: 0,
+      beatIndex: 0,
+      line: 0,
+      insertAt: F.QUARTER,
+    });
+    const id = C.addAnnotationAtCursor();
+    const annotation = store().song!.annotations.find((a) => a.id === id);
+    expect(annotation).toBeDefined();
+    expect(F.eq(annotation!.offset, F.QUARTER)).toBe(true);
+  });
+
+  it('anchors to the beat under the cursor when it sits on a note', () => {
+    open();
+    store().setCursor({ trackId: guitar().id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.setFretAtCursor(3);
+    store().setCursor({ trackId: guitar().id, measureIndex: 0, beatIndex: 0, line: 0 });
+    const id = C.addAnnotationAtCursor();
+    const annotation = store().song!.annotations.find((a) => a.id === id);
+    expect(F.eq(annotation!.offset, guitar().measures[0]!.beats[0]!.start)).toBe(true);
+  });
+});
