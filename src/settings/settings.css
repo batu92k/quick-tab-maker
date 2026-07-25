@@ -1,0 +1,169 @@
+/*
+ * Settings drawer. Slides in from the right over a dimmed page; the controls
+ * inside reuse the shell's token palette so they theme along with everything
+ * else.
+ */
+
+.qtm-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(0 0 0 / 40%);
+  z-index: 60;
+}
+
+.qtm-drawer {
+  width: min(360px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  padding: 18px 20px 24px;
+  background: var(--qtm-bg);
+  border-left: 1px solid var(--qtm-border);
+  box-shadow: -12px 0 40px rgb(0 0 0 / 24%);
+  animation: qtm-drawer-in 0.16s ease-out;
+}
+
+@keyframes qtm-drawer-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qtm-drawer {
+    animation: none;
+  }
+}
+
+.qtm-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.qtm-drawer-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.qtm-settings-section {
+  padding: 16px 0;
+  border-top: 1px solid var(--qtm-border);
+}
+
+.qtm-settings-section h3 {
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--qtm-text-muted);
+}
+
+/* A field is a label above its control, stacked, with a little breathing room
+   between fields. */
+.qtm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.qtm-field:last-child {
+  margin-bottom: 0;
+}
+
+.qtm-field-label {
+  font-size: 0.82rem;
+  color: var(--qtm-text);
+}
+
+.qtm-select {
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--qtm-text);
+  background: var(--qtm-surface);
+  border: 1px solid var(--qtm-border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.qtm-select:focus-visible {
+  outline: 2px solid var(--qtm-accent);
+  outline-offset: 1px;
+}
+
+/* Segmented control: a row of buttons that reads as one control, the active
+   segment filled with the accent. */
+.qtm-segmented {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--qtm-surface);
+  border: 1px solid var(--qtm-border);
+  border-radius: 8px;
+}
+
+.qtm-segment {
+  flex: 1;
+  min-width: 44px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--qtm-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.qtm-segment:hover {
+  color: var(--qtm-text);
+}
+
+.qtm-segment--on {
+  color: #fff;
+  background: var(--qtm-accent);
+}
+
+.qtm-segment--on:hover {
+  color: #fff;
+}
+
+.qtm-segment:focus-visible {
+  outline: 2px solid var(--qtm-accent);
+  outline-offset: 2px;
+}
+
+.qtm-swatches {
+  display: flex;
+  gap: 10px;
+}
+
+.qtm-swatch {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px var(--qtm-border);
+}
+
+.qtm-swatch--on {
+  border-color: var(--qtm-bg);
+  box-shadow: 0 0 0 2px var(--qtm-text);
+}
+
+.qtm-swatch:focus-visible {
+  outline: 2px solid var(--qtm-text);
+  outline-offset: 2px;
+}
+
+.qtm-drawer-footer {
+  padding-top: 16px;
+  border-top: 1px solid var(--qtm-border);
+}

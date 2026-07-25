@@ -64,6 +64,12 @@ export interface LayoutOptions {
   readonly stemHeight: number;
   /** Optional page height; when set, systems are packed into pages for print. */
   readonly pageHeight?: number;
+  /**
+   * Hard cap on how many bars share one system. Left unset, a system holds as
+   * many bars as the width allows; setting it also breaks the line at this
+   * count, so wide screens don't stretch a dozen bars across one row.
+   */
+  readonly maxBarsPerSystem?: number;
 }
 
 /** How far the final, partly-filled system may be stretched to justify. */
@@ -470,13 +476,15 @@ export function layoutSong(song: Song, options: Partial<LayoutOptions> = {}): La
   const grids = Array.from({ length: barCount }, (_, i) => measureGrid(song, i, o));
   const widths = grids.map((grid) => Math.max(o.minMeasureWidth, grid.width + o.measurePadding * 2));
 
-  // Greedy packing: fill a system until the next bar would overflow it.
+  // Greedy packing: fill a system until the next bar would overflow it, or until
+  // the bar cap is reached — whichever comes first.
   const rows: { first: number; last: number }[] = [];
   let first = 0;
   let used = 0;
   for (let i = 0; i < barCount; i++) {
     const w = widths[i]!;
-    if (used > 0 && used + w > available) {
+    const atCap = o.maxBarsPerSystem !== undefined && i - first >= o.maxBarsPerSystem;
+    if (used > 0 && (atCap || used + w > available)) {
       rows.push({ first, last: i });
       first = i;
       used = 0;

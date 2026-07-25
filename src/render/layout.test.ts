@@ -169,6 +169,17 @@ describe('layoutSong', () => {
     expect(bars).toEqual([...Array(12).keys()]);
   });
 
+  it('caps bars per system when asked, even with room to spare', () => {
+    const song = createSong({ tracks: [createStringTrack('guitar', { measureCount: 14 })] });
+    // Wide enough to hold all 14 bars on one line; the cap must still break it.
+    const layout = layoutSong(song, { width: 6000, maxBarsPerSystem: 6 });
+
+    expect(layout.systems.map((s) => s.staves[0]!.measures.length)).toEqual([6, 6, 2]);
+    // Every bar still appears exactly once, in order.
+    const bars = layout.systems.flatMap((s) => s.staves[0]!.measures.map((m) => m.measureIndex));
+    expect(bars).toEqual([...Array(14).keys()]);
+  });
+
   it('stacks systems downward without overlapping', () => {
     const song = createSong({ tracks: [createStringTrack('guitar', { measureCount: 12 })] });
     const layout = layoutSong(song, { width: 500 });

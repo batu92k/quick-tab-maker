@@ -33,6 +33,7 @@ src/
   render/     pure layout engine + SVG components
   editor/     cursor, keymap, input sources
   components/ fretboard, drum kit, transport, panels
+  settings/   per-device preferences (theme, fonts, layout), localStorage-backed
   export/     PDF
 ```
 
@@ -59,6 +60,16 @@ scheduler and PDF exporter can share them.
 **Layout is a pure function** (`render/layout.ts`): screen rendering,
 hit-testing and PDF export all consume its output, so the PDF cannot drift from
 what is on screen.
+
+**Appearance is CSS custom properties, not React state.** The palette and fonts
+live as `--qtm-*` tokens (`render/score.css`); `settings/settings.ts`
+(`applyAppearance`) writes them onto the document root, so changing a theme,
+accent or font triggers no re-render and the SVG re-colours for free. Preferences
+that reshape geometry instead (tab size, bars-per-line) map to `LayoutOptions`
+and flow through `App` into `layoutSong`. Bundled fonts are self-hosted via
+`@fontsource/*` (imported in `settings/fonts.ts`) — never a CDN. Preferences are
+per-device (localStorage via `settingsStore`), deliberately separate from the
+song document (IndexedDB), so importing a `.qtm` never repaints the editor.
 
 ### Invariants maintained by `edit.ts`
 

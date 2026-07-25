@@ -8,7 +8,10 @@
 
 :root {
   color-scheme: light dark;
-  font-size: 16px;
+  /* The base is scaled by a user preference (see settings). Both the default
+     and the narrow-screen step multiply the same token, so the two never fight. */
+  --qtm-font-scale: 1;
+  font-size: calc(16px * var(--qtm-font-scale));
   line-height: 1.45;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -17,6 +20,6 @@
 
 @media (max-width: 1024px) {
   :root {
-    font-size: 15px;
+    font-size: calc(15px * var(--qtm-font-scale));
   }
 }

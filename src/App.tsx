@@ -20,12 +20,13 @@ import { ShortcutSheet } from './editor/ShortcutSheet';
 import { useEditorKeyboard } from './editor/useEditorKeyboard';
 import { demoSong } from './model/fixtures';
 import { ScoreView } from './render/ScoreView';
-import type { HitResult } from './render/layout';
+import { DEFAULT_LAYOUT_OPTIONS, type HitResult, type LayoutOptions } from './render/layout';
+import { SettingsDrawer } from './settings/SettingsDrawer';
+import { applyAppearance } from './settings/settings';
+import { useSettingsStore } from './settings/settingsStore';
 import { usePlaybackStore } from './store/playbackStore';
 import { useSongStore } from './store/songStore';
 import './App.css';
-
-type Theme = 'light' | 'dark';
 
 function App() {
   const song = useSongStore((s) => s.song);
@@ -37,7 +38,8 @@ function App() {
   const snap = usePlaybackStore((s) => s.snap);
   const scrubTo = usePlaybackStore((s) => s.scrubTo);
 
-  const [theme, setTheme] = useState<Theme>('light');
+  const settings = useSettingsStore();
+  const [showSettings, setShowSettings] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showScale, setShowScale] = useState(false);
   const [selectedChord, setSelectedChord] = useState<DiatonicChord | null>(null);
@@ -53,9 +55,30 @@ function App() {
     if (!song) openSong(demoSong());
   }, [song, openSong]);
 
+  // Apply every appearance preference to the document root as CSS tokens. One
+  // effect covers theme, accent and fonts because they all resolve to custom
+  // properties the renderer already reads.
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
+    applyAppearance(settings, document.documentElement);
+  }, [settings]);
+
+  // Score layout options derived from the tab-size and bars-per-line settings.
+  // The base metrics are scaled together so the whole staff zooms as one.
+  const scoreOptions = useMemo<Partial<LayoutOptions>>(() => {
+    const t = settings.tabScale;
+    const scaled = (value: number) => Math.round(value * t);
+    return {
+      fontSize: scaled(DEFAULT_LAYOUT_OPTIONS.fontSize),
+      lineSpacing: scaled(DEFAULT_LAYOUT_OPTIONS.lineSpacing),
+      stemHeight: scaled(DEFAULT_LAYOUT_OPTIONS.stemHeight),
+      beatBaseWidth: scaled(DEFAULT_LAYOUT_OPTIONS.beatBaseWidth),
+      minMeasureWidth: scaled(DEFAULT_LAYOUT_OPTIONS.minMeasureWidth),
+      measurePadding: scaled(DEFAULT_LAYOUT_OPTIONS.measurePadding),
+      ...(settings.maxBarsPerSystem !== null
+        ? { maxBarsPerSystem: settings.maxBarsPerSystem }
+        : {}),
+    };
+  }, [settings.tabScale, settings.maxBarsPerSystem]);
 
   const handleHit = useCallback(
     (hit: HitResult) => {
@@ -117,12 +140,8 @@ function App() {
           <button type="button" className="qtm-button" onClick={() => setShowShortcuts(true)}>
             Shortcuts
           </button>
-          <button
-            type="button"
-            className="qtm-button"
-            onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
-          >
-            {theme === 'light' ? 'Dark' : 'Light'} theme
+          <button type="button" className="qtm-button" onClick={() => setShowSettings(true)}>
+            ⚙ Settings
           </button>
         </div>
       </header>
@@ -150,6 +169,7 @@ function App() {
         {song && (
           <ScoreView
             song={song}
+            options={scoreOptions}
             cursor={cursor}
             playhead={playhead}
             snap={snap}
@@ -181,6 +201,7 @@ function App() {
 
       <Notice />
 
+      {showSettings && <SettingsDrawer onClose={() => setShowSettings(false)} />}
       {showShortcuts && <ShortcutSheet onClose={() => setShowShortcuts(false)} />}
     </div>
   );
