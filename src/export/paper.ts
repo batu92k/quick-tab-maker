@@ -10,6 +10,7 @@ import type { LayoutOptions } from '../render/layout';
 import type { PaperSize } from '../settings/settings';
 
 export type PaperId = PaperSize;
+export type Orientation = 'portrait' | 'landscape';
 
 export interface PaperDimensions {
   readonly label: string;
@@ -22,6 +23,12 @@ export const PAPER_SIZES: Record<PaperId, PaperDimensions> = {
   a4: { label: 'A4', w: 595.28, h: 841.89 },
   letter: { label: 'Letter', w: 612, h: 792 },
 };
+
+/** Paper dimensions with orientation applied — landscape swaps width and height. */
+export function paperDimensions(paper: PaperId, orientation: Orientation): PaperDimensions {
+  const p = PAPER_SIZES[paper];
+  return orientation === 'landscape' ? { label: p.label, w: p.h, h: p.w } : p;
+}
 
 // Fixed print chrome. The title block is reserved on every page so pagination
 // can use one page height; page 1 fills it, later pages leave it mostly blank.
@@ -43,8 +50,8 @@ export interface PageGeometry {
   readonly scoreHeight: number;
 }
 
-export function pageGeometry(paper: PaperId): PageGeometry {
-  const p = PAPER_SIZES[paper];
+export function pageGeometry(paper: PaperId, orientation: Orientation = 'portrait'): PageGeometry {
+  const p = paperDimensions(paper, orientation);
   const scoreTop = MARGIN + TITLE_BLOCK;
   const scoreBottom = p.h - MARGIN - FOOTER;
   return {
@@ -67,9 +74,10 @@ export function pageGeometry(paper: PaperId): PageGeometry {
  */
 export function printLayoutOptions(
   paper: PaperId,
+  orientation: Orientation = 'portrait',
   extra: Partial<LayoutOptions> = {},
 ): Partial<LayoutOptions> {
-  const g = pageGeometry(paper);
+  const g = pageGeometry(paper, orientation);
   return {
     width: g.scoreWidth,
     pageHeight: g.scoreHeight,

@@ -70,7 +70,19 @@ export interface LayoutOptions {
    * count, so wide screens don't stretch a dozen bars across one row.
    */
   readonly maxBarsPerSystem?: number;
+  /**
+   * Force *exactly* this many bars onto every system (bar the last), scaling
+   * each row to fill the width even if that means shrinking dense bars below
+   * their natural size. Unlike `maxBarsPerSystem`, this can pack *more* bars
+   * per line than the width would otherwise allow — the PDF exporter offers it
+   * so the printed page can be laid out predictably. Takes precedence over the
+   * width-driven wrap and the cap when set.
+   */
+  readonly barsPerSystem?: number;
 }
+
+/** Floor on the justify scale, so a forced-bar row never collapses to a smear. */
+const MIN_FORCED_SCALE = 0.4;
 
 /** How far the final, partly-filled system may be stretched to justify. */
 const LAST_SYSTEM_MAX_STRETCH = 2.5;
@@ -476,22 +488,29 @@ export function layoutSong(song: Song, options: Partial<LayoutOptions> = {}): La
   const grids = Array.from({ length: barCount }, (_, i) => measureGrid(song, i, o));
   const widths = grids.map((grid) => Math.max(o.minMeasureWidth, grid.width + o.measurePadding * 2));
 
-  // Greedy packing: fill a system until the next bar would overflow it, or until
-  // the bar cap is reached — whichever comes first.
   const rows: { first: number; last: number }[] = [];
-  let first = 0;
-  let used = 0;
-  for (let i = 0; i < barCount; i++) {
-    const w = widths[i]!;
-    const atCap = o.maxBarsPerSystem !== undefined && i - first >= o.maxBarsPerSystem;
-    if (used > 0 && (atCap || used + w > available)) {
-      rows.push({ first, last: i });
-      first = i;
-      used = 0;
+  if (o.barsPerSystem !== undefined && o.barsPerSystem > 0) {
+    // Forced: fixed-size chunks, regardless of how wide the bars are.
+    for (let f = 0; f < barCount; f += o.barsPerSystem) {
+      rows.push({ first: f, last: Math.min(f + o.barsPerSystem, barCount) });
     }
-    used += w;
+  } else {
+    // Greedy packing: fill a system until the next bar would overflow it, or
+    // until the bar cap is reached — whichever comes first.
+    let first = 0;
+    let used = 0;
+    for (let i = 0; i < barCount; i++) {
+      const w = widths[i]!;
+      const atCap = o.maxBarsPerSystem !== undefined && i - first >= o.maxBarsPerSystem;
+      if (used > 0 && (atCap || used + w > available)) {
+        rows.push({ first, last: i });
+        first = i;
+        used = 0;
+      }
+      used += w;
+    }
+    if (barCount > 0) rows.push({ first, last: barCount });
   }
-  if (barCount > 0) rows.push({ first, last: barCount });
 
   const systems: LaidOutSystem[] = [];
   let y = o.marginTop;
@@ -499,14 +518,26 @@ export function layoutSong(song: Song, options: Partial<LayoutOptions> = {}): La
   for (const row of rows) {
     const rowWidths = widths.slice(row.first, row.last);
     const naturalTotal = rowWidths.reduce((a, b) => a + b, 0);
-    // Justify each system to the full width, never shrinking below natural size.
-    const stretch = naturalTotal > 0 && naturalTotal < available ? available / naturalTotal : 1;
-    // The final system is usually only partly full, and stretching two bars
-    // across the page looks broken — but so does leaving a song that fits on a
-    // single system hugging the left edge. Stretching it up to a limit handles
-    // both: a nearly-full last line justifies, a nearly-empty one does not.
     const isLastRow = row.last === barCount;
-    const scale = isLastRow ? Math.min(stretch, LAST_SYSTEM_MAX_STRETCH) : stretch;
+    const raw = naturalTotal > 0 ? available / naturalTotal : 1;
+
+    let scale: number;
+    if (o.barsPerSystem !== undefined && o.barsPerSystem > 0) {
+      // Forced rows fill the width in both directions — shrinking a dense row to
+      // fit the requested bar count, stretching a sparse one — down to a floor
+      // that keeps notes legible. The short last row still only stretches to the
+      // usual limit so a lone trailing bar doesn't balloon across the page.
+      scale = Math.max(MIN_FORCED_SCALE, isLastRow ? Math.min(raw, LAST_SYSTEM_MAX_STRETCH) : raw);
+    } else {
+      // Justify each system to the full width, never shrinking below natural
+      // size. The final system is usually only partly full, and stretching two
+      // bars across the page looks broken — but so does leaving a song that fits
+      // on a single system hugging the left edge. Stretching it up to a limit
+      // handles both: a nearly-full last line justifies, a nearly-empty one does
+      // not.
+      const stretch = raw > 1 ? raw : 1;
+      scale = isLastRow ? Math.min(stretch, LAST_SYSTEM_MAX_STRETCH) : stretch;
+    }
 
     let staffTop = y;
     const staves: LaidOutStaff[] = song.tracks.map((track, trackIndex) => {

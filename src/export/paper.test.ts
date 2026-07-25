@@ -33,7 +33,14 @@ describe('printLayoutOptions', () => {
     expect(o.lineSpacing!).toBeGreaterThan(o.fontSize! * 1.24);
   });
 
-  it('passes extra options through, e.g. a bars-per-line cap', () => {
-    expect(printLayoutOptions('a4', { maxBarsPerSystem: 5 }).maxBarsPerSystem).toBe(5);
+  it('passes extra options through, e.g. a forced bars-per-line', () => {
+    expect(printLayoutOptions('a4', 'portrait', { barsPerSystem: 4 }).barsPerSystem).toBe(4);
+  });
+
+  it('swaps the box dimensions for landscape', () => {
+    const portrait = pageGeometry('a4', 'portrait');
+    const landscape = pageGeometry('a4', 'landscape');
+    expect(landscape.scoreWidth).toBeGreaterThan(portrait.scoreWidth);
+    expect(landscape.scoreHeight).toBeLessThan(portrait.scoreHeight);
   });
 });

@@ -1,0 +1,49 @@
+/* PDF export dialog: a centred modal, self-contained so it does not depend on
+   another component's stylesheet being loaded. */
+
+.qtm-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 45%);
+  z-index: 60;
+}
+
+.qtm-export-dialog {
+  width: min(340px, 100%);
+  padding: 18px 20px 20px;
+  background: var(--qtm-bg);
+  border: 1px solid var(--qtm-border);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 28%);
+}
+
+.qtm-export-hint {
+  font-size: 0.75rem;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-export-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.qtm-button--primary {
+  color: #fff;
+  background: var(--qtm-accent);
+  border-color: var(--qtm-accent);
+}
+
+.qtm-button--primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.qtm-button--primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

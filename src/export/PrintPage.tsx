@@ -34,13 +34,23 @@ export function PrintPage({ page, options, annotations, width, height }: PrintPa
       height={height}
       viewBox={`0 0 ${width} ${height}`}
     >
-      {page.systems.map((system, i) => (
-        <g key={i}>
-          {system.staves.map((staff) => (
-            <Staff key={staff.track.id} staff={staff} system={system} options={options} />
-          ))}
-        </g>
-      ))}
+      {page.systems.map((system, i) => {
+        // Pagination re-anchors `system.y` to the page top but leaves the staves
+        // (and their notes) at their original, continuous y. The renderer draws
+        // from staff geometry, so without this translate a later page's systems
+        // would appear wherever they sat in the full scroll — at the bottom of
+        // the sheet, or off it. The first staff starts at the system's original
+        // top, so the gap between the two is exactly the shift to apply.
+        const anchorY = system.staves[0]?.y ?? system.y;
+        const dy = system.y - anchorY;
+        return (
+          <g key={i} transform={dy ? `translate(0 ${dy})` : undefined}>
+            {system.staves.map((staff) => (
+              <Staff key={staff.track.id} staff={staff} system={system} options={options} />
+            ))}
+          </g>
+        );
+      })}
       {annotations.map((a, i) => (
         <text
           key={i}

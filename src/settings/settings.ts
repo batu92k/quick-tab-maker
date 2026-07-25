@@ -88,6 +88,11 @@ export const PAPER_OPTIONS: readonly { id: PaperSize; label: string }[] = [
   { id: 'letter', label: 'Letter (US)' },
 ];
 
+export type PageOrientation = 'portrait' | 'landscape';
+
+/** PDF bars-per-line: `null` fits as many as the page allows. */
+export const PDF_BARS_PER_LINE: readonly (number | null)[] = [null, 1, 2, 3, 4, 5, 6, 8];
+
 export interface Settings {
   readonly theme: ThemeChoice;
   /** `AccentOption` id. */
@@ -104,6 +109,10 @@ export interface Settings {
   readonly maxBarsPerSystem: number | null;
   /** Paper size used by PDF export. */
   readonly paperSize: PaperSize;
+  /** Page orientation used by PDF export. */
+  readonly pdfOrientation: PageOrientation;
+  /** Forced bars per line in the PDF, or null to fit as many as the page allows. */
+  readonly pdfBarsPerLine: number | null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -115,6 +124,8 @@ export const DEFAULT_SETTINGS: Settings = {
   tabScale: 1,
   maxBarsPerSystem: 6,
   paperSize: 'a4',
+  pdfOrientation: 'portrait',
+  pdfBarsPerLine: null,
 };
 
 const byId = <T extends { id: string }>(list: readonly T[], id: string, fallback: T): T =>

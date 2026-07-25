@@ -180,6 +180,17 @@ describe('layoutSong', () => {
     expect(bars).toEqual([...Array(14).keys()]);
   });
 
+  it('forces an exact bar count per system, shrinking to fit if need be', () => {
+    const song = createSong({ tracks: [createStringTrack('guitar', { measureCount: 9 })] });
+    // A narrow page can't fit three bars naturally, but a forced count must.
+    const layout = layoutSong(song, { width: 360, barsPerSystem: 3 });
+
+    expect(layout.systems.map((s) => s.staves[0]!.measures.length)).toEqual([3, 3, 3]);
+    // Every bar appears once, in order.
+    const bars = layout.systems.flatMap((s) => s.staves[0]!.measures.map((m) => m.measureIndex));
+    expect(bars).toEqual([...Array(9).keys()]);
+  });
+
   it('stacks systems downward without overlapping', () => {
     const song = createSong({ tracks: [createStringTrack('guitar', { measureCount: 12 })] });
     const layout = layoutSong(song, { width: 500 });

@@ -21,6 +21,7 @@ import { useEditorKeyboard } from './editor/useEditorKeyboard';
 import { demoSong } from './model/fixtures';
 import { ScoreView } from './render/ScoreView';
 import { DEFAULT_LAYOUT_OPTIONS, type HitResult, type LayoutOptions } from './render/layout';
+import { PdfExportDialog } from './settings/PdfExportDialog';
 import { SettingsDrawer } from './settings/SettingsDrawer';
 import { applyAppearance } from './settings/settings';
 import { useSettingsStore } from './settings/settingsStore';
@@ -42,6 +43,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showScale, setShowScale] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [selectedChord, setSelectedChord] = useState<DiatonicChord | null>(null);
   // Id of a note just added, so its input can grab focus for typing. Cleared on
@@ -73,11 +75,18 @@ function App() {
         const { buildPdf } = await import('./export/pdf');
         const doc = await buildPdf(useSongStore.getState().song!, {
           paper: settings.paperSize,
+          orientation: settings.pdfOrientation,
+          barsPerLine: settings.pdfBarsPerLine,
           maxBarsPerSystem: settings.maxBarsPerSystem,
         });
         return doc.output('bloburl') as unknown as string;
       };
-  }, [settings.paperSize, settings.maxBarsPerSystem]);
+  }, [
+    settings.paperSize,
+    settings.pdfOrientation,
+    settings.pdfBarsPerLine,
+    settings.maxBarsPerSystem,
+  ]);
 
   // Score layout options derived from the tab-size and bars-per-line settings.
   // The base metrics are scaled together so the whole staff zooms as one.
@@ -129,15 +138,24 @@ function App() {
       const { exportSongToPdf } = await import('./export/pdf');
       await exportSongToPdf(song, {
         paper: settings.paperSize,
+        orientation: settings.pdfOrientation,
+        barsPerLine: settings.pdfBarsPerLine,
         maxBarsPerSystem: settings.maxBarsPerSystem,
       });
+      setShowExport(false);
     } catch (error) {
       console.error('[pdf] export failed', error);
       useSongStore.getState().setNotice('PDF export failed — see the console for details.');
     } finally {
       setExporting(false);
     }
-  }, [song, settings.paperSize, settings.maxBarsPerSystem]);
+  }, [
+    song,
+    settings.paperSize,
+    settings.pdfOrientation,
+    settings.pdfBarsPerLine,
+    settings.maxBarsPerSystem,
+  ]);
 
   const handleChangeKey = useCallback((key: NonNullable<typeof song>['key']) => {
     // A chord from the old key may not exist in the new one, so drop the
@@ -176,10 +194,10 @@ function App() {
           <button
             type="button"
             className="qtm-button"
-            onClick={handleExportPdf}
-            disabled={!song || exporting}
+            onClick={() => setShowExport(true)}
+            disabled={!song}
           >
-            {exporting ? 'Exporting…' : 'Export PDF'}
+            Export PDF
           </button>
           <button type="button" className="qtm-button" onClick={() => setShowShortcuts(true)}>
             Shortcuts
@@ -245,6 +263,13 @@ function App() {
 
       <Notice />
 
+      {showExport && (
+        <PdfExportDialog
+          onClose={() => setShowExport(false)}
+          onExport={handleExportPdf}
+          exporting={exporting}
+        />
+      )}
       {showSettings && <SettingsDrawer onClose={() => setShowSettings(false)} />}
       {showShortcuts && <ShortcutSheet onClose={() => setShowShortcuts(false)} />}
     </div>

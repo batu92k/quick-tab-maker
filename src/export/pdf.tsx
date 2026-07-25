@@ -19,16 +19,30 @@ import { layoutSong, type Layout } from '../render/layout';
 import { PrintPage, type PrintAnnotation } from './PrintPage';
 import {
   pageGeometry,
+  PAPER_SIZES,
   printLayoutOptions,
   PRINT_TOKENS,
+  type Orientation,
   type PageGeometry,
   type PaperId,
 } from './paper';
 
 export interface PdfOptions {
   readonly paper: PaperId;
-  /** Mirrors the editor's bars-per-line preference; null fits as many as fit. */
+  readonly orientation: Orientation;
+  /**
+   * Force exactly this many bars per line, or null to fit as many as the page
+   * width allows. Falls back to the editor's cap when fitting.
+   */
+  readonly barsPerLine?: number | null;
+  /** The editor's bars-per-line cap, applied only when `barsPerLine` is null. */
   readonly maxBarsPerSystem?: number | null;
+}
+
+function layoutExtras(opts: PdfOptions): Partial<import('../render/layout').LayoutOptions> {
+  if (opts.barsPerLine != null) return { barsPerSystem: opts.barsPerLine };
+  if (opts.maxBarsPerSystem != null) return { maxBarsPerSystem: opts.maxBarsPerSystem };
+  return {};
 }
 
 /**
@@ -139,17 +153,16 @@ function drawChrome(
 
 /** Builds the document without saving it, so callers (and tests) can inspect it. */
 export async function buildPdf(song: Song, opts: PdfOptions): Promise<jsPDF> {
-  const geom = pageGeometry(opts.paper);
-  const layout = layoutSong(
-    song,
-    printLayoutOptions(
-      opts.paper,
-      opts.maxBarsPerSystem != null ? { maxBarsPerSystem: opts.maxBarsPerSystem } : {},
-    ),
-  );
+  const geom = pageGeometry(opts.paper, opts.orientation);
+  const layout = layoutSong(song, printLayoutOptions(opts.paper, opts.orientation, layoutExtras(opts)));
   const annotations = perPageAnnotations(layout);
 
-  const doc = new jsPDF({ unit: 'pt', format: [geom.paper.w, geom.paper.h], orientation: 'portrait' });
+  // jsPDF takes a portrait base format and arranges it by the orientation flag
+  // (landscape → width = long side). geom.paper is already oriented and drives
+  // our own drawing, so the two agree.
+  const base = PAPER_SIZES[opts.paper];
+  const format: [number, number] = [base.w, base.h];
+  const doc = new jsPDF({ unit: 'pt', format, orientation: opts.orientation });
 
   // svg2pdf reads computed styles, so the SVG must be attached to the document.
   // The wrapper carries the print palette as custom properties and sits well
@@ -168,7 +181,7 @@ export async function buildPdf(song: Song, opts: PdfOptions): Promise<jsPDF> {
   try {
     const total = layout.pages.length;
     for (let i = 0; i < total; i++) {
-      if (i > 0) doc.addPage([geom.paper.w, geom.paper.h], 'portrait');
+      if (i > 0) doc.addPage(format, opts.orientation);
       drawChrome(doc, song, geom, i, total);
 
       wrapper.innerHTML = renderToStaticMarkup(
