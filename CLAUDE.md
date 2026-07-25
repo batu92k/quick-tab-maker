@@ -7,8 +7,9 @@ backend, no accounts. Songs live in IndexedDB and export as `.qtm` JSON files.
 
 ```bash
 npm run dev        # dev server
-npm test           # vitest run
+npm test           # vitest run (unit: src/**/*.test.ts)
 npm run test:watch
+npm run e2e        # playwright test (flows in e2e/, drives a headless browser)
 npm run typecheck  # tsc -b --noEmit
 npm run lint       # oxlint
 npm run build      # tsc -b && vite build
@@ -116,6 +117,14 @@ Model, theory and layout are pure and carry the bulk of the tests. Component
 tests opt into jsdom per file with `// @vitest-environment jsdom`; the default
 environment is node. The store's tests mock `store/persistence` — IndexedDB does
 not exist under node.
+
+Playwright covers the handful of things unit tests cannot: real IndexedDB
+persistence across a reload, PDF download, playback, and click-to-place note
+entry. Flows live in `e2e/` (`.spec.ts`, so vitest — which only globs
+`src/**/*.test.ts` — leaves them alone) and run against the dev server. Each
+test gets a fresh browser context, so IndexedDB starts empty and the app seeds
+its demo song, giving every flow a known starting point. `npx playwright install
+chromium` once, then `npm run e2e`.
 
 ## Deferred but designed for
 
