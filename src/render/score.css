@@ -209,10 +209,3 @@
 .qtm-ruler-tick--strong {
   stroke: var(--qtm-barline);
 }
-
-/* Onset ticks mark where notes actually sit — the snap targets the playhead
-   lands on — so they stand out from the faint subdivision grid behind them. */
-.qtm-ruler-tick--onset {
-  stroke: var(--qtm-text-muted);
-  stroke-width: 1.4;
-}

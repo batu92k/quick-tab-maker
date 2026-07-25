@@ -364,7 +364,10 @@ const SystemRuler = memo(function SystemRuler({ system, options, sub }: SystemRu
   // 1/12 and no dyadic subdivision reaches it, so without the extra onset ticks
   // a triplet note would have no tick and read as misaligned. Onsets that the
   // grid already covers (a dyadic note) are left to their subdivision tick, so
-  // the two never stack.
+  // the two never stack. Onset ticks are drawn exactly like subdivision ticks:
+  // singling them out with a heavier stroke made a handful of ticks look bolder
+  // than their neighbours, and worse, which ticks stood out shifted every time
+  // the snap changed. Only beats (quarter boundaries) get a taller mark.
   const gridTicks: { x: number; strong: boolean }[] = [];
   const allOnsets: number[] = [];
   for (const measure of staff.measures) {
@@ -411,11 +414,11 @@ const SystemRuler = memo(function SystemRuler({ system, options, sub }: SystemRu
       {onsetXs.map((x, i) => (
         <line
           key={`o${i}`}
-          className="qtm-ruler-tick qtm-ruler-tick--onset"
+          className="qtm-ruler-tick"
           x1={x}
           y1={band.line}
           x2={x}
-          y2={band.line - 9}
+          y2={band.line - 4}
         />
       ))}
     </g>
