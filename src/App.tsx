@@ -42,6 +42,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showScale, setShowScale] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [selectedChord, setSelectedChord] = useState<DiatonicChord | null>(null);
   // Id of a note just added, so its input can grab focus for typing. Cleared on
   // blur so the same box is not re-focused on later renders.
@@ -61,6 +62,22 @@ function App() {
   useEffect(() => {
     applyAppearance(settings, document.documentElement);
   }, [settings]);
+
+  // Dev-only: build the PDF and hand back a blob URL, so the export can be
+  // inspected in a tab without writing to the user's Downloads folder. Stripped
+  // from production builds.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __qtmPreviewPdf?: () => Promise<string> }).__qtmPreviewPdf =
+      async () => {
+        const { buildPdf } = await import('./export/pdf');
+        const doc = await buildPdf(useSongStore.getState().song!, {
+          paper: settings.paperSize,
+          maxBarsPerSystem: settings.maxBarsPerSystem,
+        });
+        return doc.output('bloburl') as unknown as string;
+      };
+  }, [settings.paperSize, settings.maxBarsPerSystem]);
 
   // Score layout options derived from the tab-size and bars-per-line settings.
   // The base metrics are scaled together so the whole staff zooms as one.
@@ -103,6 +120,25 @@ function App() {
     setAutoFocusAnnotation((current) => (current === id ? undefined : current));
   }, []);
 
+  const handleExportPdf = useCallback(async () => {
+    if (!song) return;
+    setExporting(true);
+    try {
+      // The PDF stack (jspdf, svg2pdf, react-dom/server) is loaded only here, on
+      // demand, so it never weighs down the editor's startup.
+      const { exportSongToPdf } = await import('./export/pdf');
+      await exportSongToPdf(song, {
+        paper: settings.paperSize,
+        maxBarsPerSystem: settings.maxBarsPerSystem,
+      });
+    } catch (error) {
+      console.error('[pdf] export failed', error);
+      useSongStore.getState().setNotice('PDF export failed — see the console for details.');
+    } finally {
+      setExporting(false);
+    }
+  }, [song, settings.paperSize, settings.maxBarsPerSystem]);
+
   const handleChangeKey = useCallback((key: NonNullable<typeof song>['key']) => {
     // A chord from the old key may not exist in the new one, so drop the
     // selection rather than leave a stale highlight on the neck.
@@ -137,6 +173,14 @@ function App() {
           )}
         </div>
         <div className="qtm-header-actions">
+          <button
+            type="button"
+            className="qtm-button"
+            onClick={handleExportPdf}
+            disabled={!song || exporting}
+          >
+            {exporting ? 'Exporting…' : 'Export PDF'}
+          </button>
           <button type="button" className="qtm-button" onClick={() => setShowShortcuts(true)}>
             Shortcuts
           </button>

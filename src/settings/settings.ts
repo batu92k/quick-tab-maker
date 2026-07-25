@@ -76,6 +76,18 @@ export const SIZE_STEPS: readonly SizeStep[] = [
 /** Bars-per-line choices. `null` means fit as many as the width allows. */
 export const BARS_PER_LINE: readonly (number | null)[] = [null, 2, 3, 4, 5, 6, 7, 8];
 
+/**
+ * Paper size for PDF export. Kept as a plain string union here rather than
+ * imported from `export/paper` so the heavy PDF module (jspdf, svg2pdf) stays
+ * out of the startup bundle and loads only when the user exports.
+ */
+export type PaperSize = 'a4' | 'letter';
+
+export const PAPER_OPTIONS: readonly { id: PaperSize; label: string }[] = [
+  { id: 'a4', label: 'A4' },
+  { id: 'letter', label: 'Letter (US)' },
+];
+
 export interface Settings {
   readonly theme: ThemeChoice;
   /** `AccentOption` id. */
@@ -90,6 +102,8 @@ export interface Settings {
   readonly tabScale: number;
   /** Hard cap on bars per system, or null to fit as many as fit the width. */
   readonly maxBarsPerSystem: number | null;
+  /** Paper size used by PDF export. */
+  readonly paperSize: PaperSize;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -100,6 +114,7 @@ export const DEFAULT_SETTINGS: Settings = {
   uiScale: 1,
   tabScale: 1,
   maxBarsPerSystem: 6,
+  paperSize: 'a4',
 };
 
 const byId = <T extends { id: string }>(list: readonly T[], id: string, fallback: T): T =>

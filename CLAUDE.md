@@ -61,6 +61,19 @@ scheduler and PDF exporter can share them.
 hit-testing and PDF export all consume its output, so the PDF cannot drift from
 what is on screen.
 
+**PDF export reuses the screen renderer, not a parallel one.** `export/pdf.tsx`
+lays the song out with a `pageHeight` (so `layout.pages` breaks systems across
+pages), renders each page's SVG with the same `Staff` component the editor uses,
+and hands it to svg2pdf; the title block, running header and page numbers are
+drawn as jsPDF text around it. Two print-only wrinkles live in `export/paper.ts`
+and `export/pdf.tsx`: a fixed light palette (`PRINT_TOKENS`) set on the offscreen
+render wrapper so a dark theme still prints on white, and `inlineStylesForPdf`,
+which flattens computed styles onto elements and remaps the tab/UI fonts to
+jsPDF's built-in `courier`/`helvetica` (svg2pdf can't render an unregistered
+font — glyphs come out as empty boxes). Print metrics are compact but keep
+`lineSpacing > 1.24 × fontSize`, or stacked chord digits clip each other. The
+whole module is imported dynamically so jspdf/svg2pdf never touch startup.
+
 **Appearance is CSS custom properties, not React state.** The palette and fonts
 live as `--qtm-*` tokens (`render/score.css`); `settings/settings.ts`
 (`applyAppearance`) writes them onto the document root, so changing a theme,

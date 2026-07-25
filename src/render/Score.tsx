@@ -235,7 +235,7 @@ interface StaffProps {
   options: LayoutOptions;
 }
 
-const Staff = memo(function Staff({ staff, system, options }: StaffProps) {
+export const Staff = memo(function Staff({ staff, system, options }: StaffProps) {
   const isString = isStringTrack(staff.track);
   const lineBottom = staff.lineYs[staff.lineYs.length - 1] ?? staff.y;
   const left = system.contentLeft;

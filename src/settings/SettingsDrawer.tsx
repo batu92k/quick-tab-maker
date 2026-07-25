@@ -11,6 +11,7 @@ import { useEffect } from 'react';
 import {
   ACCENTS,
   BARS_PER_LINE,
+  PAPER_OPTIONS,
   SIZE_STEPS,
   TAB_FONTS,
   UI_FONTS,
@@ -192,6 +193,21 @@ export function SettingsDrawer({ onClose }: SettingsDrawerProps) {
               {BARS_PER_LINE.map((n) => (
                 <option key={n ?? 'auto'} value={n ?? 'auto'}>
                   {n === null ? 'Auto (fit width)' : n}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="qtm-field">
+            <span className="qtm-field-label">Paper size (PDF)</span>
+            <select
+              className="qtm-select"
+              value={settings.paperSize}
+              onChange={(e) => update({ paperSize: e.target.value as typeof settings.paperSize })}
+            >
+              {PAPER_OPTIONS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
                 </option>
               ))}
             </select>
