@@ -14,7 +14,7 @@
 import { memo } from 'react';
 import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
-import { isStringTrack, type DrumNote, type Note } from '../model/types';
+import { isStringTrack, type DrumNote, type Note, type Technique } from '../model/types';
 import { noteheadFor, stemDirection } from '../theory/drums';
 import {
   offsetToX,
@@ -127,7 +127,9 @@ function StringNotes({ measure, options }: StringNotesProps) {
         beat.notes.map((laidOut) => {
           const note = laidOut.note as Note;
           const width = laidOut.text.length * options.fontSize * 0.62 + 3;
-          const muted = note.techniques.includes('palmMute') || note.techniques.includes('ghost');
+          // A ghost (dead) note is dimmed in place; palm-muting and every other
+          // technique is now marked above the staff instead — see BeatTechniques.
+          const muted = note.techniques.includes('ghost');
           return (
             <g key={note.id} className={muted ? 'qtm-note qtm-note--muted' : 'qtm-note'}>
               <rect
@@ -146,7 +148,6 @@ function StringNotes({ measure, options }: StringNotesProps) {
               >
                 {laidOut.text}
               </text>
-              {renderTechniques(note, laidOut.x, laidOut.y, options)}
             </g>
           );
         }),
@@ -155,28 +156,30 @@ function StringNotes({ measure, options }: StringNotesProps) {
   );
 }
 
-/** Technique marks drawn above a fret number. */
-function renderTechniques(note: Note, x: number, y: number, options: LayoutOptions) {
-  const marks: string[] = [];
-  if (note.techniques.includes('hammer')) marks.push('H');
-  if (note.techniques.includes('pull')) marks.push('P');
-  if (note.techniques.includes('bend')) marks.push('b');
-  if (note.techniques.includes('vibrato')) marks.push('~');
-  if (note.techniques.includes('slide')) marks.push('/');
-  if (note.techniques.includes('harmonic')) marks.push('◇');
-  if (marks.length === 0) return null;
+/**
+ * Technique marks, drawn above the staff on the beat rather than tucked against
+ * each fret number, so a reader scans them along the top like chord names. The
+ * marks of every note in the beat (a chord may mix techniques) are unioned into
+ * one label in a fixed reading order.
+ */
+const TECHNIQUE_MARKS: readonly (readonly [Technique, string])[] = [
+  ['palmMute', 'PM'],
+  ['hammer', 'H'],
+  ['pull', 'P'],
+  ['bend', 'b'],
+  ['vibrato', '~'],
+  ['slide', '/'],
+  ['harmonic', '◇'],
+];
 
-  return (
-    <text
-      className="qtm-technique"
-      x={x}
-      y={y - options.lineSpacing * 0.72}
-      textAnchor="middle"
-      fontSize={options.fontSize * 0.8}
-    >
-      {marks.join('')}
-    </text>
-  );
+function beatTechniqueMarks(beat: LaidOutBeat): string {
+  const present = new Set<Technique>();
+  for (const laidOut of beat.notes) {
+    for (const technique of (laidOut.note as Note).techniques) present.add(technique);
+  }
+  return TECHNIQUE_MARKS.filter(([technique]) => present.has(technique))
+    .map(([, mark]) => mark)
+    .join(' ');
 }
 
 /** Ledger lines for a notehead that sits above or below the five staff lines. */
@@ -432,6 +435,22 @@ export const Staff = memo(function Staff({ staff, system, options }: StaffProps)
                   </text>
                 ) : null,
               )}
+              {/* Technique marks, on the beat just above the top string line. */}
+              {measure.beats.map((beat) => {
+                const marks = beatTechniqueMarks(beat);
+                return marks ? (
+                  <text
+                    key={`tech-${beat.beat.id}`}
+                    className="qtm-technique"
+                    x={beat.x}
+                    y={lineTop - options.lineSpacing * 0.5}
+                    textAnchor="middle"
+                    fontSize={options.fontSize * 0.8}
+                  >
+                    {marks}
+                  </text>
+                ) : null;
+              })}
             </>
           ) : (
             <>
