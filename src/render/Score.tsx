@@ -15,7 +15,7 @@ import { memo } from 'react';
 import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
 import { isStringTrack, type DrumNote, type Note } from '../model/types';
-import { noteheadFor } from '../theory/drums';
+import { noteheadFor, stemDirection } from '../theory/drums';
 import {
   offsetToX,
   rulerBand,
@@ -179,8 +179,23 @@ function renderTechniques(note: Note, x: number, y: number, options: LayoutOptio
   );
 }
 
-/** Drum noteheads: crosses for cymbals, dots for drums. */
-function DrumNotes({ measure, options }: StringNotesProps) {
+/** Ledger lines for a notehead that sits above or below the five staff lines. */
+function ledgersFor(y: number, staff: LaidOutStaff, ls: number): number[] {
+  const topLine = staff.lineYs[0] ?? y;
+  const bottomLine = staff.lineYs[staff.lineYs.length - 1] ?? y;
+  const eps = ls * 0.25;
+  const out: number[] = [];
+  for (let ly = topLine - ls; ly >= y - eps; ly -= ls) out.push(ly);
+  for (let ly = bottomLine + ls; ly <= y + eps; ly += ls) out.push(ly);
+  return out;
+}
+
+/**
+ * Drum noteheads on the five-line staff: crosses for cymbals and the hi-hat,
+ * filled dots for drums, a ringed cross for an open hi-hat, a diamond for bells.
+ * Notes above or below the staff (the crash, the kick pedal) get ledger lines.
+ */
+function DrumNotes({ measure, staff, options }: StringNotesProps) {
   const r = options.lineSpacing * 0.3;
   return (
     <>
@@ -191,6 +206,7 @@ function DrumNotes({ measure, options }: StringNotesProps) {
           const { x, y } = laidOut;
           const accent = note.articulation === 'accent';
           const ghost = note.articulation === 'ghost';
+          const open = shape === 'circledCross';
 
           return (
             <g
@@ -199,21 +215,26 @@ function DrumNotes({ measure, options }: StringNotesProps) {
                 ghost ? ' qtm-drum-note--ghost' : ''
               }`}
             >
+              {ledgersFor(y, staff, options.lineSpacing).map((ly, i) => (
+                <line key={`l${i}`} className="qtm-ledger" x1={x - r * 1.9} y1={ly} x2={x + r * 1.9} y2={ly} />
+              ))}
               {shape === 'dot' && <circle cx={x} cy={y} r={r} />}
-              {(shape === 'cross' || shape === 'circledCross') && (
+              {(shape === 'cross' || open) && (
                 <>
                   <line x1={x - r} y1={y - r} x2={x + r} y2={y + r} />
                   <line x1={x - r} y1={y + r} x2={x + r} y2={y - r} />
                 </>
               )}
-              {shape === 'circledCross' && (
-                <circle className="qtm-drum-ring" cx={x} cy={y} r={r * 1.7} fill="none" />
+              {/* Open hi-hat is marked with a small circle above the cross, the
+                  convention for letting the cymbals ring. */}
+              {open && (
+                <circle className="qtm-drum-ring" cx={x} cy={y - options.lineSpacing * 0.7} r={r * 0.6} fill="none" />
               )}
               {shape === 'diamond' && (
                 <polygon points={`${x},${y - r} ${x + r},${y} ${x},${y + r} ${x - r},${y}`} />
               )}
               {accent && (
-                <text className="qtm-accent" x={x} y={y - options.lineSpacing * 0.8} textAnchor="middle" fontSize={options.fontSize * 0.9}>
+                <text className="qtm-accent" x={x} y={y - options.lineSpacing * 0.9} textAnchor="middle" fontSize={options.fontSize * 0.9}>
                   &gt;
                 </text>
               )}
@@ -222,6 +243,84 @@ function DrumNotes({ measure, options }: StringNotesProps) {
         }),
       )}
     </>
+  );
+}
+
+/**
+ * Per-note stems for a drum beat: hands (cymbals, snare, toms) stem up on the
+ * right of the column, feet (kick, hi-hat pedal) stem down on the left, each
+ * with the flags its note value calls for. A rest beat shows a rest on the
+ * middle line. This replaces the shared rhythm row that a tab staff uses.
+ */
+function DrumStem({ beat, staff, options }: { beat: LaidOutBeat; staff: LaidOutStaff; options: LayoutOptions }) {
+  const ls = options.lineSpacing;
+  if (beat.isRest || beat.notes.length === 0) {
+    const midY = staff.lineYs[2] ?? staff.y;
+    return <rect className="qtm-rest" x={beat.x - 3.5} y={midY - 2} width={7} height={4} rx={1} />;
+  }
+
+  const r = ls * 0.3;
+  const flags = flagCount(beat.beat.duration);
+  const stemLen = ls * 2;
+  const boxTop = staff.y + ls * 0.2;
+  const boxBottom = staff.y + staff.height - ls * 0.2;
+
+  const ups = beat.notes.filter((n) => stemDirection((n.note as DrumNote).piece) === 'up').map((n) => n.y);
+  const downs = beat.notes.filter((n) => stemDirection((n.note as DrumNote).piece) === 'down').map((n) => n.y);
+
+  return (
+    <g className="qtm-drum-stem">
+      {ups.length > 0 &&
+        stem('up', ups, beat.x + r, stemLen, flags, boxTop, boxBottom)}
+      {downs.length > 0 &&
+        stem('down', downs, beat.x - r, stemLen, flags, boxTop, boxBottom)}
+    </g>
+  );
+}
+
+function stem(
+  dir: 'up' | 'down',
+  ys: number[],
+  x: number,
+  stemLen: number,
+  flags: number,
+  boxTop: number,
+  boxBottom: number,
+) {
+  if (dir === 'up') {
+    const base = Math.max(...ys); // lowest notehead
+    const tip = Math.max(boxTop, Math.min(...ys) - stemLen); // above the highest, clamped
+    return (
+      <>
+        <line x1={x} y1={base} x2={x} y2={tip} />
+        {Array.from({ length: flags }, (_, i) => (
+          <line key={i} x1={x} y1={tip + i * 4} x2={x + 6} y2={tip + i * 4 + 5} />
+        ))}
+      </>
+    );
+  }
+  const base = Math.min(...ys); // highest notehead
+  const tip = Math.min(boxBottom, Math.max(...ys) + stemLen);
+  return (
+    <>
+      <line x1={x} y1={base} x2={x} y2={tip} />
+      {Array.from({ length: flags }, (_, i) => (
+        <line key={i} x1={x} y1={tip - i * 4} x2={x + 6} y2={tip - i * 4 - 5} />
+      ))}
+    </>
+  );
+}
+
+/** The two-bar percussion clef, drawn in the label gutter at each system. */
+function DrumClef({ x, lineYs }: { x: number; lineYs: readonly number[] }) {
+  const top = lineYs[1] ?? 0;
+  const bottom = lineYs[3] ?? 0;
+  const w = 2.2;
+  return (
+    <g className="qtm-drum-clef">
+      <rect x={x} y={top} width={w} height={bottom - top} />
+      <rect x={x + w * 2.4} y={top} width={w} height={bottom - top} />
+    </g>
   );
 }
 
@@ -237,6 +336,9 @@ interface StaffProps {
 
 export const Staff = memo(function Staff({ staff, system, options }: StaffProps) {
   const isString = isStringTrack(staff.track);
+  // A drum staff's `y` sits well above its top line (headroom for cymbals and
+  // stems), so bar lines and labels key off the top *staff line*, not `y`.
+  const lineTop = staff.lineYs[0] ?? staff.y;
   const lineBottom = staff.lineYs[staff.lineYs.length - 1] ?? staff.y;
   const left = system.contentLeft;
   const right = system.contentRight;
@@ -248,7 +350,7 @@ export const Staff = memo(function Staff({ staff, system, options }: StaffProps)
         <line key={i} className="qtm-staff-line" x1={left} y1={y} x2={right} y2={y} />
       ))}
 
-      {/* Row labels */}
+      {/* String labels (tab only; the percussion staff carries a clef instead) */}
       {staff.lineLabels.map((label, i) => (
         <text
           key={i}
@@ -262,12 +364,13 @@ export const Staff = memo(function Staff({ staff, system, options }: StaffProps)
           {label}
         </text>
       ))}
+      {!isString && <DrumClef x={left - 16} lineYs={staff.lineYs} />}
 
       {/* Track name, once per system */}
       <text
         className="qtm-track-name"
         x={options.marginX}
-        y={staff.y - options.lineSpacing * 0.9}
+        y={lineTop - options.lineSpacing * 0.9}
         fontSize={options.fontSize * 0.95}
       >
         {staff.track.name}
@@ -279,12 +382,12 @@ export const Staff = memo(function Staff({ staff, system, options }: StaffProps)
           key={`bar-${measure.measureIndex}`}
           className="qtm-barline"
           x1={measure.x}
-          y1={staff.y}
+          y1={lineTop}
           x2={measure.x}
           y2={lineBottom}
         />
       ))}
-      <line className="qtm-barline" x1={right} y1={staff.y} x2={right} y2={lineBottom} />
+      <line className="qtm-barline" x1={right} y1={lineTop} x2={right} y2={lineBottom} />
 
       {/* Bar numbers, on the top staff only */}
       {staff.trackIndex === 0 &&
@@ -293,7 +396,7 @@ export const Staff = memo(function Staff({ staff, system, options }: StaffProps)
             key={`num-${measure.measureIndex}`}
             className="qtm-bar-number"
             x={measure.x + 3}
-            y={staff.y - options.lineSpacing * 0.5}
+            y={lineTop - options.lineSpacing * 0.5}
             fontSize={options.fontSize * 0.75}
           >
             {measure.measureIndex + 1}
@@ -304,32 +407,40 @@ export const Staff = memo(function Staff({ staff, system, options }: StaffProps)
       {staff.measures.map((measure) => (
         <g key={measure.measure.id}>
           {isString ? (
-            <StringNotes measure={measure} staff={staff} options={options} />
+            <>
+              <StringNotes measure={measure} staff={staff} options={options} />
+              {measure.beats.map((beat) => (
+                <BeatStem
+                  key={beat.beat.id}
+                  beat={beat}
+                  baseline={lineBottom + options.lineSpacing * 0.5}
+                  options={options}
+                />
+              ))}
+              {/* Chord names, above the staff, as a chord sheet would place them. */}
+              {measure.beats.map((beat) =>
+                beat.chord ? (
+                  <text
+                    key={`chord-${beat.beat.id}`}
+                    className="qtm-chord"
+                    x={beat.x}
+                    y={lineTop - options.lineSpacing * 1.2}
+                    textAnchor="middle"
+                    fontSize={options.fontSize * 1.05}
+                  >
+                    {beat.chord}
+                  </text>
+                ) : null,
+              )}
+            </>
           ) : (
-            <DrumNotes measure={measure} staff={staff} options={options} />
-          )}
-          {measure.beats.map((beat) => (
-            <BeatStem
-              key={beat.beat.id}
-              beat={beat}
-              baseline={lineBottom + options.lineSpacing * 0.5}
-              options={options}
-            />
-          ))}
-          {/* Chord names, above the staff, as a chord sheet would place them. */}
-          {measure.beats.map((beat) =>
-            beat.chord ? (
-              <text
-                key={`chord-${beat.beat.id}`}
-                className="qtm-chord"
-                x={beat.x}
-                y={staff.y - options.lineSpacing * 1.2}
-                textAnchor="middle"
-                fontSize={options.fontSize * 1.05}
-              >
-                {beat.chord}
-              </text>
-            ) : null,
+            <>
+              {/* Drums carry a stem on every note, so no separate rhythm row. */}
+              {measure.beats.map((beat) => (
+                <DrumStem key={beat.beat.id} beat={beat} staff={staff} options={options} />
+              ))}
+              <DrumNotes measure={measure} staff={staff} options={options} />
+            </>
           )}
         </g>
       ))}

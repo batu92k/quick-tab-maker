@@ -26,7 +26,12 @@ import {
   type Track,
 } from '../model/types';
 import { chordForStringBeat } from '../theory/chords';
-import { DRUM_ROW_COUNT, rowForPiece } from '../theory/drums';
+import {
+  DRUM_ROW_COUNT,
+  DRUM_STAFF_LINES,
+  positionForPiece,
+  positionForRow,
+} from '../theory/drums';
 import { specOf } from '../theory/midi';
 
 /* -------------------------------------------------------------------------- */
@@ -178,13 +183,20 @@ export interface LaidOutMeasure {
 export interface LaidOutStaff {
   readonly track: Track;
   readonly trackIndex: number;
-  /** Top of the staff's line block. */
+  /** Top of the staff's bounding block. */
   readonly y: number;
-  /** y of each string/row line, top to bottom. */
+  /** y of each drawn staff line, top to bottom. */
   readonly lineYs: readonly number[];
+  /**
+   * y of each line the cursor can sit on and a click snaps to: one per string
+   * for tab, one per drum voice for a percussion staff. For strings this equals
+   * `lineYs`; for drums it is the nine voice positions, which do not line up
+   * with the five drawn lines.
+   */
+  readonly rowYs: readonly number[];
   readonly height: number;
   readonly measures: readonly LaidOutMeasure[];
-  /** Per-line labels at the left: string names, or drum abbreviations. */
+  /** Per-line labels at the left: string names for tab, empty for drums. */
   readonly lineLabels: readonly string[];
 }
 
@@ -348,12 +360,44 @@ export function naturalMeasureWidth(song: Song, measureIndex: number, o: LayoutO
   return Math.max(o.minMeasureWidth, grid.width + o.measurePadding * 2);
 }
 
-function staffLineCount(track: Track): number {
-  return isStringTrack(track) ? track.tuning.length : DRUM_ROW_COUNT;
+/**
+ * Headroom above the top staff line, and below the bottom, for a drum staff, in
+ * line-spacings. The top holds the cymbals (which sit above the staff) and their
+ * up-stems; the bottom holds the kick pedal and its down-stem. A note's visual
+ * line is its staff position shifted down by the top pad.
+ */
+const DRUM_TOP_PAD = 3;
+const DRUM_BOTTOM_PAD = 2.2;
+
+const drumLineOffset = (position: number): number => DRUM_TOP_PAD + position;
+
+/** y of each drawn staff line, top to bottom. */
+function staffLineYs(track: Track, staffTop: number, o: LayoutOptions): number[] {
+  if (isStringTrack(track)) {
+    return Array.from({ length: track.tuning.length }, (_, i) => staffTop + i * o.lineSpacing);
+  }
+  return Array.from(
+    { length: DRUM_STAFF_LINES },
+    (_, i) => staffTop + drumLineOffset(i) * o.lineSpacing,
+  );
+}
+
+/** y of each cursor line: a string for tab, a drum voice for percussion. */
+function staffRowYs(track: Track, staffTop: number, o: LayoutOptions): number[] {
+  if (isStringTrack(track)) {
+    return Array.from({ length: track.tuning.length }, (_, i) => staffTop + i * o.lineSpacing);
+  }
+  return Array.from(
+    { length: DRUM_ROW_COUNT },
+    (_, row) => staffTop + drumLineOffset(positionForRow(row)) * o.lineSpacing,
+  );
 }
 
 function staffHeight(track: Track, o: LayoutOptions): number {
-  return (staffLineCount(track) - 1) * o.lineSpacing + o.stemHeight;
+  if (isStringTrack(track)) {
+    return (track.tuning.length - 1) * o.lineSpacing + o.stemHeight;
+  }
+  return (DRUM_TOP_PAD + (DRUM_STAFF_LINES - 1) + DRUM_BOTTOM_PAD) * o.lineSpacing;
 }
 
 function lineLabels(track: Track): string[] {
@@ -362,22 +406,25 @@ function lineLabels(track: Track): string[] {
     // relative to the tuning array, which is stored lowest-first.
     return [...track.tuning].reverse().map((pitch) => pitch.replace(/\d+$/, ''));
   }
-  return ['CC', 'HH', 'RD', 'T1', 'T2', 'FT', 'SN', 'BD', 'HF'];
+  // A percussion staff is unlabelled — it carries a clef instead.
+  return [];
 }
 
 /**
- * Which visual line a note sits on.
+ * Which visual line a note sits on, as a multiple of line spacing below the
+ * staff top.
  *
  * Tab convention puts the highest-pitched string on the top line, but the
  * document stores tuning lowest-first, so string index and line index run in
  * opposite directions. Getting this backwards silently mirrors every tab, so it
- * is isolated here and covered by tests.
+ * is isolated here and covered by tests. A drum note lands on its conventional
+ * staff position, shifted down by the top pad.
  */
 export function lineForNote(track: Track, note: AnyNote): number {
   if (isStringTrack(track)) {
     return track.tuning.length - 1 - (note as Note).string;
   }
-  return rowForPiece((note as DrumNote).piece);
+  return drumLineOffset(positionForPiece((note as DrumNote).piece));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -553,8 +600,6 @@ export function layoutSong(song: Song, options: Partial<LayoutOptions> = {}): La
 
     let staffTop = y;
     const staves: LaidOutStaff[] = song.tracks.map((track, trackIndex) => {
-      const lines = staffLineCount(track);
-      const lineYs = Array.from({ length: lines }, (_, i) => staffTop + i * o.lineSpacing);
       const measures: LaidOutMeasure[] = [];
 
       let x = contentLeft;
@@ -568,7 +613,8 @@ export function layoutSong(song: Song, options: Partial<LayoutOptions> = {}): La
         track,
         trackIndex,
         y: staffTop,
-        lineYs,
+        lineYs: staffLineYs(track, staffTop, o),
+        rowYs: staffRowYs(track, staffTop, o),
         height: staffHeight(track, o),
         measures,
         lineLabels: lineLabels(track),
@@ -709,14 +755,22 @@ export function hitTest(layout: Layout, x: number, y: number): HitResult | undef
 
   for (const system of layout.systems) {
     for (const staff of system.staves) {
-      const top = staff.y - o.lineSpacing / 2;
-      const bottom = staff.y + (staff.lineYs.length - 1) * o.lineSpacing + o.lineSpacing / 2;
+      const rows = staff.rowYs;
+      const top = rows[0]! - o.lineSpacing;
+      const bottom = rows[rows.length - 1]! + o.lineSpacing;
       if (y < top || y > bottom) continue;
 
-      const line = Math.min(
-        staff.lineYs.length - 1,
-        Math.max(0, Math.round((y - staff.y) / o.lineSpacing)),
-      );
+      // Snap to the nearest cursor line. Drum voices are unevenly spaced, so this
+      // is a nearest-search rather than the even division a tab staff would allow.
+      let line = 0;
+      let best = Infinity;
+      for (let i = 0; i < rows.length; i++) {
+        const distance = Math.abs(rows[i]! - y);
+        if (distance < best) {
+          best = distance;
+          line = i;
+        }
+      }
 
       for (const measure of staff.measures) {
         if (x < measure.x || x > measure.x + measure.width) continue;
@@ -757,14 +811,18 @@ export function cursorPosition(
       if (staff.track.id !== trackId) continue;
       const measure = staff.measures.find((m) => m.measureIndex === measureIndex);
       if (!measure) continue;
+      // The cursor's line indexes a string for tab or a drum voice for
+      // percussion; `rowYs` maps either to a y, so drums land on their staff
+      // position rather than an evenly divided grid.
+      const cursorY = staff.rowYs[Math.max(0, Math.min(staff.rowYs.length - 1, line))] ?? staff.y;
       // An insert cursor sits between beats, so it is drawn at its grid position
       // rather than on any beat's column.
       if (insertAt !== undefined) {
-        return { x: offsetToX(measure, F.toNumber(insertAt)), y: staff.y + line * layout.options.lineSpacing };
+        return { x: offsetToX(measure, F.toNumber(insertAt)), y: cursorY };
       }
       const beat = measure.beats[beatIndex];
       const x = beat ? beat.x : measure.appendX;
-      return { x, y: staff.y + line * layout.options.lineSpacing };
+      return { x, y: cursorY };
     }
   }
   return undefined;

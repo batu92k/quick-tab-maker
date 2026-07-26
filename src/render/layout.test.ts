@@ -5,7 +5,7 @@ import * as F from '../model/fraction';
 import { demoSong } from '../model/fixtures';
 import { createDrumTrack, createSong, createStringTrack } from '../model/song';
 import { isStringTrack, type Song } from '../model/types';
-import { DRUM_ROW_COUNT, rowForPiece } from '../theory/drums';
+import { DRUM_ROW_COUNT, DRUM_STAFF_LINES } from '../theory/drums';
 import {
   DEFAULT_LAYOUT_OPTIONS,
   cursorPosition,
@@ -61,17 +61,21 @@ describe('lineForNote', () => {
     expect(lineForNote(track, { id: 'n', string: 0, fret: 0, techniques: [] })).toBe(3);
   });
 
-  it('places drum pieces on their staff rows', () => {
+  it('places drum pieces on their standard staff positions', () => {
     const song = createSong({ tracks: [createDrumTrack()] });
     const track = song.tracks[0]!;
-    const line = (piece: 'kick' | 'snare' | 'crash') =>
+    const line = (piece: 'kick' | 'snare' | 'crash' | 'hihat') =>
       lineForNote(track, { id: 'n', piece, articulation: 'normal' });
 
-    expect(line('crash')).toBe(rowForPiece('crash'));
-    expect(line('snare')).toBe(rowForPiece('snare'));
+    // Positions are the standard staff placement plus the top pad, so pieces
+    // no longer sit one-per-row; only their vertical order is fixed here.
     // Cymbals sit above the snare, which sits above the kick.
-    expect(line('crash')).toBeLessThan(line('snare'));
+    expect(line('crash')).toBeLessThan(line('hihat'));
+    expect(line('hihat')).toBeLessThan(line('snare'));
     expect(line('snare')).toBeLessThan(line('kick'));
+    // Snare on the third space and kick on the bottom space are a full staff
+    // step apart (their positions differ by two, i.e. two line-spacings).
+    expect(line('kick') - line('snare')).toBeCloseTo(2);
   });
 });
 
@@ -155,7 +159,9 @@ describe('layoutSong', () => {
     const [guitar, bass, drums] = layout.systems[0]!.staves;
     expect(guitar!.lineYs).toHaveLength(6);
     expect(bass!.lineYs).toHaveLength(4);
-    expect(drums!.lineYs).toHaveLength(DRUM_ROW_COUNT);
+    // A percussion staff always has five lines; its nine voices map onto them.
+    expect(drums!.lineYs).toHaveLength(DRUM_STAFF_LINES);
+    expect(drums!.rowYs).toHaveLength(DRUM_ROW_COUNT);
   });
 
   it('wraps into multiple systems when the width runs out', () => {
@@ -340,6 +346,19 @@ describe('hitTest', () => {
 
     const third = hitTest(layout, beat.x, staff.lineYs[2]!);
     expect(third?.line).toBe(2);
+  });
+
+  it('snaps a drum click to the nearest voice, not an evenly divided line', () => {
+    const layout = layoutSong(demoSong(), { width: 2400 });
+    const drums = layout.systems[0]!.staves.find((s) => s.track.kind === 'drums')!;
+    const beat = drums.measures[0]!.beats[0]!;
+
+    // Row 5 is the snare; a click on its position resolves to that voice even
+    // though it does not sit on an evenly spaced line of the five-line staff.
+    const snareRow = 5;
+    const hit = hitTest(layout, beat.x, drums.rowYs[snareRow]!);
+    expect(hit?.trackId).toBe(drums.track.id);
+    expect(hit?.line).toBe(snareRow);
   });
 
   it('returns the append slot when clicking past the last beat', () => {

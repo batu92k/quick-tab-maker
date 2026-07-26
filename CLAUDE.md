@@ -63,6 +63,15 @@ scheduler and PDF exporter can share them.
 hit-testing and PDF export all consume its output, so the PDF cannot drift from
 what is on screen.
 
+**Drums render as a standard five-line staff, but are still edited by voice.**
+The editor addresses drums through nine "voices" (`theory/drums.ts` `DRUM_ROWS`)
+— the cursor moves between them and note entry targets one — while the renderer
+places each on its conventional staff position (`positionForPiece`) with a
+per-note stem (`stemDirection`: hands up, feet down). Layout keeps both a
+`lineYs` (the five drawn lines) and a `rowYs` (the nine voice positions a click
+snaps to and the cursor sits on); they do not line up, which is the whole point.
+Note values show as flags, not beams — beaming is deliberately deferred.
+
 **PDF export reuses the screen renderer, not a parallel one.** `export/pdf.tsx`
 lays the song out with a `pageHeight` (so `layout.pages` breaks systems across
 pages), renders each page's SVG with the same `Staff` component the editor uses,

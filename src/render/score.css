@@ -142,6 +142,25 @@
   fill: none;
 }
 
+/* Per-note stems and their flags. */
+.qtm-drum-stem line {
+  stroke: var(--qtm-note);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+
+/* Ledger lines for the crash above the staff and the kick pedal below it. */
+.qtm-ledger {
+  stroke: var(--qtm-staff-line);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+/* The two-bar percussion clef in the label gutter. */
+.qtm-drum-clef rect {
+  fill: var(--qtm-text-muted);
+}
+
 .qtm-drum-note--ghost {
   opacity: 0.45;
 }
