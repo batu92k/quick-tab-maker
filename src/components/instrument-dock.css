@@ -1,0 +1,59 @@
+/*
+ * The dock sits below the scrolling score as the last flex child of the app, so
+ * it stays put while `.qtm-main` scrolls. `flex-shrink: 0` keeps it from being
+ * squeezed; the body caps its own height and scrolls a tall fretboard rather
+ * than pushing the bar off-screen.
+ */
+
+.qtm-dock {
+  flex-shrink: 0;
+  background: var(--qtm-bg);
+  border-top: 1px solid var(--qtm-border);
+}
+
+.qtm-dock-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 20px;
+  font: inherit;
+  color: var(--qtm-text);
+  background: var(--qtm-surface);
+  border: none;
+  border-bottom: 1px solid var(--qtm-border);
+  cursor: pointer;
+  text-align: left;
+}
+
+.qtm-dock-bar:hover .qtm-dock-toggle {
+  color: var(--qtm-accent);
+}
+
+.qtm-dock-bar:focus-visible {
+  outline: 2px solid var(--qtm-accent);
+  outline-offset: -2px;
+}
+
+.qtm-dock-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.qtm-dock-toggle {
+  font-size: 0.8rem;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-dock-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  align-items: flex-start;
+  padding: 14px 20px;
+  /* Cap the dock so it never swallows the score on a short screen; a taller
+     fretboard scrolls within the dock instead. */
+  max-height: 46vh;
+  overflow: auto;
+}

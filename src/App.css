@@ -21,7 +21,11 @@ body {
 .qtm-app {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  /* Fill the viewport exactly so the score scrolls inside `.qtm-main` and the
+     instrument dock can stay pinned to the bottom rather than the whole page
+     scrolling past it. */
+  height: 100%;
+  overflow: hidden;
 }
 
 .qtm-header {
@@ -75,15 +79,11 @@ body {
 
 .qtm-main {
   flex: 1;
+  /* `min-height: 0` lets the score region shrink below its content height so it
+     scrolls, instead of pushing the docked footer off the bottom of the app. */
+  min-height: 0;
   padding: 20px;
-  overflow-x: auto;
-}
-
-.qtm-aids {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: flex-start;
+  overflow: auto;
 }
 
 .qtm-hint {

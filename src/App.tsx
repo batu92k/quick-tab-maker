@@ -8,11 +8,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as C from './editor/commands';
+import { InstrumentDock } from './components/InstrumentDock';
 import { InstrumentPanel } from './components/InstrumentPanel';
 import { Mixer } from './components/Mixer';
 import { TheoryPanel } from './components/TheoryPanel';
 import { Transport } from './components/Transport';
 import type { ScaleOverlay } from './components/Fretboard';
+import { isStringTrack } from './model/types';
 import { scaleInfo, type DiatonicChord } from './theory/scale';
 import { EditorToolbar } from './editor/EditorToolbar';
 import { Notice } from './editor/Notice';
@@ -212,6 +214,15 @@ function App() {
     };
   }, [song, showScale, selectedChord]);
 
+  // The track the cursor is on drives what the sticky dock shows: a string
+  // track gets the key/scale helper and fretboard, a drum track just the kit.
+  const activeTrack = song?.tracks.find((t) => t.id === cursor?.trackId);
+  const dockCollapsed = settings.instrumentDockCollapsed;
+  const toggleDock = useCallback(() => {
+    const s = useSettingsStore.getState();
+    s.update({ instrumentDockCollapsed: !s.instrumentDockCollapsed });
+  }, []);
+
   if (view === 'library') {
     return <SongLibrary currentSongId={song?.id ?? null} onClose={() => setView('editor')} />;
   }
@@ -288,9 +299,19 @@ function App() {
             autoFocusAnnotation={autoFocusAnnotation}
           />
         )}
-        <div className="qtm-aids">
-          <InstrumentPanel scale={scaleOverlay} />
-          {song && (
+        <p className="qtm-hint">
+          Click a position, then type a fret number. Arrow keys move, <kbd>[</kbd> and{' '}
+          <kbd>]</kbd> change the note value, <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.
+        </p>
+      </main>
+
+      {song && activeTrack && (
+        <InstrumentDock
+          trackName={activeTrack.name}
+          collapsed={dockCollapsed}
+          onToggle={toggleDock}
+        >
+          {isStringTrack(activeTrack) && (
             <TheoryPanel
               songKey={song.key}
               onChangeKey={handleChangeKey}
@@ -300,12 +321,9 @@ function App() {
               onSelectChord={setSelectedChord}
             />
           )}
-        </div>
-        <p className="qtm-hint">
-          Click a position, then type a fret number. Arrow keys move, <kbd>[</kbd> and{' '}
-          <kbd>]</kbd> change the note value, <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.
-        </p>
-      </main>
+          <InstrumentPanel scale={scaleOverlay} />
+        </InstrumentDock>
+      )}
 
       <Notice />
 

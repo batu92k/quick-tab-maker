@@ -113,6 +113,8 @@ export interface Settings {
   readonly pdfOrientation: PageOrientation;
   /** Forced bars per line in the PDF, or null to fit as many as the page allows. */
   readonly pdfBarsPerLine: number | null;
+  /** Whether the sticky instrument dock at the bottom is collapsed to its bar. */
+  readonly instrumentDockCollapsed: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -126,6 +128,7 @@ export const DEFAULT_SETTINGS: Settings = {
   paperSize: 'a4',
   pdfOrientation: 'portrait',
   pdfBarsPerLine: null,
+  instrumentDockCollapsed: false,
 };
 
 const byId = <T extends { id: string }>(list: readonly T[], id: string, fallback: T): T =>
