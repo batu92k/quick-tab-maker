@@ -1,0 +1,137 @@
+/*
+ * Notation-key layout. Reuses the modal shell from shortcuts.css; this file
+ * only adds the glyph-and-description rows and the drum-piece list.
+ */
+
+.qtm-guide-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 22px 30px;
+  align-items: start;
+}
+
+/* The drum section carries the most rows, so let it span the full width when
+   there is room rather than leaving a lopsided gap beside it. */
+.qtm-guide-group--wide {
+  grid-column: 1 / -1;
+}
+
+.qtm-guide-group h3 {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-guide-subhead {
+  margin: 16px 0 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-guide-note {
+  margin: 0 0 8px;
+  font-size: 0.76rem;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-guide-group dl {
+  margin: 0;
+}
+
+.qtm-guide-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 5px 0;
+}
+
+/* A fixed, centred slot so the noteheads line up in a tidy column regardless of
+   each glyph's own width. */
+.qtm-guide-glyph {
+  flex: 0 0 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding-top: 1px;
+}
+
+.qtm-guide-glyph svg {
+  overflow: visible;
+}
+
+.qtm-guide-text {
+  min-width: 0;
+}
+
+.qtm-guide-text dt {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--qtm-text);
+}
+
+.qtm-guide-text dd {
+  margin: 1px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-guide-text code {
+  font-family: var(--qtm-font-tab);
+  font-size: 0.9em;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--qtm-surface);
+  color: var(--qtm-text);
+}
+
+/* Text glyphs shown in the glyph column (technique marks, the accent caret).
+   The score classes colour SVG via `fill`; on HTML spans we need `color`. */
+.qtm-guide-glyph .qtm-technique,
+.qtm-guide-glyph .qtm-accent {
+  font-family: var(--qtm-font-ui);
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--qtm-accent);
+}
+
+.qtm-guide-mono {
+  font-family: var(--qtm-font-tab);
+  font-variant-numeric: tabular-nums;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--qtm-note);
+}
+
+.qtm-guide-dim {
+  color: var(--qtm-text-muted);
+}
+
+.qtm-guide-symbol {
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--qtm-text-muted);
+}
+
+/* Match the score's ghost-note treatment for the sample notehead. */
+.qtm-guide-glyph-ghost {
+  opacity: 0.45;
+  display: inline-flex;
+}
+
+.qtm-guide-pieces {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  columns: 2;
+  font-size: 0.78rem;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-guide-pieces li {
+  padding: 1px 0;
+}

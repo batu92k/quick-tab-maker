@@ -16,6 +16,7 @@ import type { ScaleOverlay } from './components/Fretboard';
 import { scaleInfo, type DiatonicChord } from './theory/scale';
 import { EditorToolbar } from './editor/EditorToolbar';
 import { Notice } from './editor/Notice';
+import { NotationGuide } from './editor/NotationGuide';
 import { ShortcutSheet } from './editor/ShortcutSheet';
 import { useEditorKeyboard } from './editor/useEditorKeyboard';
 import { SongLibrary } from './library/SongLibrary';
@@ -47,6 +48,7 @@ function App() {
   const [view, setView] = useState<View>('editor');
   const [showSettings, setShowSettings] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [showScale, setShowScale] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -243,6 +245,9 @@ function App() {
           <button type="button" className="qtm-button" onClick={() => setShowShortcuts(true)}>
             Shortcuts
           </button>
+          <button type="button" className="qtm-button" onClick={() => setShowGuide(true)}>
+            Notation key
+          </button>
           <button type="button" className="qtm-button" onClick={() => setShowSettings(true)}>
             ⚙ Settings
           </button>
@@ -313,6 +318,7 @@ function App() {
       )}
       {showSettings && <SettingsDrawer onClose={() => setShowSettings(false)} />}
       {showShortcuts && <ShortcutSheet onClose={() => setShowShortcuts(false)} />}
+      {showGuide && <NotationGuide onClose={() => setShowGuide(false)} />}
     </div>
   );
 }
