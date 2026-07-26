@@ -602,4 +602,18 @@ describe('empty-bar ruler spacing', () => {
     // The downbeat sits at the far left, not the middle of the bar.
     expect(xs[0]!).toBeLessThan((xs[0]! + xs[4]!) / 2);
   });
+
+  it('puts the caret on the downbeat of an empty bar, not mid-bar', () => {
+    const song = guitarOnly(1);
+    const layout = layoutSong(song, { width: 2400 });
+    const measure = layout.systems[0]!.staves[0]!.measures[0]!;
+
+    // The append slot (where the caret and the next note land) sits well left of
+    // the bar's midpoint, so clicking the empty bar selects its downbeat.
+    const midBar = measure.x + measure.width / 2;
+    expect(measure.appendX).toBeLessThan(midBar);
+
+    const pos = cursorPosition(layout, song.tracks[0]!.id, 0, 0, 0)!;
+    expect(pos.x).toBeCloseTo(measure.appendX);
+  });
 });

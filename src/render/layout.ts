@@ -474,6 +474,12 @@ function layoutMeasure(
   const spec = isStringTrack(track) ? specOf(track) : null;
 
   const indexOf = new Map(grid.positions.map((p, i) => [key(p), i]));
+  // Where the caret and the next note land in an empty bar. In a bar every track
+  // has left empty the grid is degenerate ([start, end]), so `columnAt(0)` is the
+  // bar's midpoint — anchoring the caret there makes the downbeat look
+  // unclickable. Match the edge-anchored `columns` above and sit it on the
+  // downbeat instead. A bar with notes keeps the note-centred append column.
+  const emptyAppendX = edgeAt(0);
   const empty: LaidOutMeasure = {
     measure: measure ?? { id: `missing_${measureIndex}`, beats: [] },
     measureIndex,
@@ -481,7 +487,7 @@ function layoutMeasure(
     width,
     beats: [],
     columns,
-    appendX: columnAt(0),
+    appendX: emptyBar ? emptyAppendX : columnAt(0),
   };
   if (!measure) return empty;
 
@@ -524,8 +530,9 @@ function layoutMeasure(
     beats,
     // The next note lands in the first free column. In a full bar that is the
     // bar's end, which carries no offset, so the cursor sits against the bar
-    // line rather than beyond it.
-    appendX: columnAt(Math.min(end, grid.positions.length - 1)),
+    // line rather than beyond it. An empty bar has no columns to centre on, so
+    // the caret sits on the downbeat (see `emptyAppendX`) rather than mid-bar.
+    appendX: emptyBar ? emptyAppendX : columnAt(Math.min(end, grid.positions.length - 1)),
     ...(measure.timeSig ? { timeSigChange: measure.timeSig } : {}),
   };
 }

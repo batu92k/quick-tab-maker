@@ -152,9 +152,14 @@ export const useSongStore = create<EditorState>((set, get) => ({
   async newSong() {
     await getAutosaver().flush();
     // A blank project still gets the full band, since there is no add-track UI
-    // yet and an empty song can otherwise only ever be a guitar part.
+    // yet and an empty song can otherwise only ever be a guitar part. It opens on
+    // a single empty bar — the user adds more as the part grows.
     const song = createSong({
-      tracks: [createStringTrack('guitar'), createStringTrack('bass'), createDrumTrack()],
+      tracks: [
+        createStringTrack('guitar', { measureCount: 1 }),
+        createStringTrack('bass', { measureCount: 1 }),
+        createDrumTrack({ measureCount: 1 }),
+      ],
     });
     get().openSong(song);
     // Persist immediately so a new song survives a reload even if the user never
