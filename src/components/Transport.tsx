@@ -8,27 +8,10 @@
 
 import { useCallback, useRef, useState } from 'react';
 import * as C from '../editor/commands';
-import * as F from '../model/fraction';
-import type { Fraction } from '../model/fraction';
 import { songLengthInBars } from '../model/song';
 import { useSongStore } from '../store/songStore';
 import { usePlaybackStore } from '../store/playbackStore';
 import './transport.css';
-
-/** Snap grid choices, coarsest first. `null` is free positioning. */
-const SNAP_OPTIONS: readonly { readonly label: string; readonly value: Fraction | null }[] = [
-  { label: 'Off', value: null },
-  { label: '1/4', value: F.QUARTER },
-  { label: '1/8', value: F.EIGHTH },
-  { label: '1/16', value: F.SIXTEENTH },
-  { label: '1/32', value: F.THIRTY_SECOND },
-];
-
-function snapIndex(snap: Fraction | null): number {
-  return SNAP_OPTIONS.findIndex((o) =>
-    o.value === null ? snap === null : snap !== null && F.eq(o.value, snap),
-  );
-}
 
 /** Taps older than this belong to a previous attempt, not this one. */
 const TAP_TIMEOUT_MS = 2500;
@@ -48,7 +31,6 @@ export function Transport() {
   const metronome = usePlaybackStore((s) => s.metronome);
   const countInBars = usePlaybackStore((s) => s.countInBars);
   const loop = usePlaybackStore((s) => s.loop);
-  const snap = usePlaybackStore((s) => s.snap);
   const error = usePlaybackStore((s) => s.error);
 
   const taps = useRef<number[]>([]);
@@ -82,18 +64,30 @@ export function Transport() {
       <div className="qtm-transport-group">
         <button
           type="button"
-          className="qtm-button qtm-button--primary"
+          className="qtm-button qtm-button--primary qtm-transport-icon"
+          aria-label={status === 'playing' ? 'Pause' : 'Play'}
           onClick={() => void usePlaybackStore.getState().toggle()}
         >
-          {status === 'playing' ? 'Pause' : 'Play'}
+          {status === 'playing' ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M4 3h3v10H4zM9 3h3v10H9z" fill="currentColor" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M4 3l9 5-9 5z" fill="currentColor" />
+            </svg>
+          )}
         </button>
         <button
           type="button"
-          className="qtm-button"
+          className="qtm-button qtm-transport-icon"
+          aria-label="Stop"
           onClick={() => usePlaybackStore.getState().stop()}
           disabled={status === 'stopped'}
         >
-          Stop
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <rect x="4" y="4" width="8" height="8" fill="currentColor" />
+          </svg>
         </button>
       </div>
 
@@ -129,14 +123,32 @@ export function Transport() {
       </div>
 
       <div className="qtm-transport-group">
-        <label className="qtm-check">
-          <input
-            type="checkbox"
-            checked={metronome}
-            onChange={(e) => usePlaybackStore.getState().setMetronome(e.target.checked)}
-          />
-          <span>Metronome</span>
-        </label>
+        <button
+          type="button"
+          className="qtm-button qtm-transport-icon"
+          aria-label="Metronome"
+          aria-pressed={metronome}
+          onClick={() => usePlaybackStore.getState().setMetronome(!metronome)}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path
+              d="M6 2.5h4l2.2 11H3.8z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinejoin="round"
+            />
+            <line
+              x1="8"
+              y1="11.5"
+              x2="10.4"
+              y2="4.5"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
         <label className="qtm-field">
           <span>Count-in</span>
           <select
@@ -146,21 +158,6 @@ export function Transport() {
             <option value={0}>Off</option>
             <option value={1}>1 bar</option>
             <option value={2}>2 bars</option>
-          </select>
-        </label>
-        <label className="qtm-field" title="Grid the playhead snaps to when you click the ruler">
-          <span>Snap</span>
-          <select
-            value={snapIndex(snap)}
-            onChange={(e) =>
-              usePlaybackStore.getState().setSnap(SNAP_OPTIONS[Number(e.target.value)]!.value)
-            }
-          >
-            {SNAP_OPTIONS.map((o, i) => (
-              <option key={o.label} value={i}>
-                {o.label}
-              </option>
-            ))}
           </select>
         </label>
       </div>

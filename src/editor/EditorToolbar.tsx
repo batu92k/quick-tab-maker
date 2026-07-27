@@ -9,6 +9,7 @@
 import * as F from '../model/fraction';
 import { isStringTrack } from '../model/types';
 import { useSongStore } from '../store/songStore';
+import { usePlaybackStore } from '../store/playbackStore';
 import * as C from './commands';
 import {
   TOOLBAR_DURATIONS,
@@ -17,6 +18,7 @@ import {
   durationLabel,
   durationShortLabel,
 } from './durations';
+import { SNAP_OPTIONS, snapIndex } from './snap';
 import './toolbar.css';
 
 const TECHNIQUES = [
@@ -37,6 +39,7 @@ export function EditorToolbar() {
   const redo = useSongStore((s) => s.redo);
   const cursor = useSongStore((s) => s.cursor);
   const song = useSongStore((s) => s.song);
+  const snap = usePlaybackStore((s) => s.snap);
 
   const track = song?.tracks.find((t) => t.id === cursor?.trackId);
   const isFretted = track ? isStringTrack(track) : false;
@@ -149,6 +152,25 @@ export function EditorToolbar() {
         >
           Clear bar
         </button>
+      </div>
+
+      <div className="qtm-toolbar-group qtm-toolbar-snap" role="group" aria-label="Snap grid">
+        <label>
+          <span className="qtm-toolbar-snap-label">Snap</span>
+          <select
+            className="qtm-toolbar-select"
+            value={snapIndex(snap)}
+            onChange={(e) =>
+              usePlaybackStore.getState().setSnap(SNAP_OPTIONS[Number(e.target.value)]!.value)
+            }
+          >
+            {SNAP_OPTIONS.map((o, i) => (
+              <option key={o.label} value={i}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="qtm-toolbar-group" role="group" aria-label="History">

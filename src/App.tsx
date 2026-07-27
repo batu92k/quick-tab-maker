@@ -230,7 +230,7 @@ function App() {
   return (
     <div className="qtm-app">
       <header className="qtm-header">
-        <div>
+        <div className="qtm-header-title">
           <h1>{song?.title ?? 'Quick Tab Maker'}</h1>
           {song && (
             <p className="qtm-subtitle">
@@ -241,6 +241,7 @@ function App() {
             </p>
           )}
         </div>
+        <Transport />
         <div className="qtm-header-actions">
           <button type="button" className="qtm-button" onClick={() => setView('library')}>
             ☰ Songs
@@ -267,7 +268,6 @@ function App() {
 
       {song && (
         <div className="qtm-controls">
-          <Transport />
           <Mixer />
         </div>
       )}

@@ -39,6 +39,14 @@ body {
   border-bottom: 1px solid var(--qtm-border);
 }
 
+.qtm-header-title {
+  flex: 0 0 auto;
+}
+
+.qtm-header > .qtm-transport {
+  flex: 1 1 auto;
+}
+
 .qtm-header h1 {
   margin: 0;
   font-size: 1.05rem;

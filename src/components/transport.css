@@ -1,12 +1,13 @@
 .qtm-transport {
   display: flex;
   align-items: center;
-  gap: 18px;
+  justify-content: center;
+  gap: 14px;
   flex-wrap: wrap;
-  padding: 8px 14px;
-  border: 1px solid var(--qtm-border);
-  border-radius: 10px;
-  background: var(--qtm-surface);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   font-size: 0.8rem;
 }
 
@@ -73,4 +74,26 @@
   border-color: var(--qtm-accent);
   color: #fff;
   min-width: 62px;
+}
+
+/* Icon-only transport buttons: play/pause, stop, metronome. Scoped under
+   .qtm-transport so they override .qtm-button / .qtm-button--primary (which
+   otherwise forces a 62px min-width) no matter the stylesheet order. The Play
+   button keeps --primary for its accent fill; this rule only resizes it. */
+.qtm-transport .qtm-transport-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  min-width: 0;
+  padding: 0;
+  line-height: 0;
+}
+
+/* The metronome button is a toggle; fill it with the accent when active. */
+.qtm-transport .qtm-transport-icon[aria-pressed='true'] {
+  background: var(--qtm-accent);
+  border-color: var(--qtm-accent);
+  color: #fff;
 }
