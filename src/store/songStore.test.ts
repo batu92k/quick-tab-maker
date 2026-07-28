@@ -239,13 +239,14 @@ describe('duplicateSong', () => {
 });
 
 describe('newSong', () => {
-  it('opens a blank guitar, bass and drums project', async () => {
+  it('opens an empty project with no instruments', async () => {
     const song = await store().newSong();
 
     expect(store().song).toBe(song);
-    expect(song.tracks.map((t) => t.kind)).toEqual(['guitar', 'bass', 'drums']);
-    // A fresh project starts with no notes anywhere.
-    expect(song.tracks.every((t) => t.measures.every((m) => m.beats.length === 0))).toBe(true);
+    // A new song starts with no instruments; the user adds them. It lands on
+    // the empty state, so the cursor is null.
+    expect(song.tracks).toEqual([]);
+    expect(store().cursor).toBeNull();
     expect(store().past).toHaveLength(0);
   });
 });

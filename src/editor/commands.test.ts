@@ -382,3 +382,35 @@ describe('text annotations', () => {
     expect(F.eq(annotation!.offset, guitar().measures[0]!.beats[0]!.start)).toBe(true);
   });
 });
+
+describe('instrument add/remove', () => {
+  it('adds an instrument and shows it', () => {
+    open([createStringTrack('guitar', { measureCount: 2 })]);
+    C.addInstrument('drums');
+    const s = store().song!;
+    expect(s.tracks).toHaveLength(2);
+    expect(s.tracks[1]!.kind).toBe('drums');
+    expect(store().cursor!.trackId).toBe(s.tracks[1]!.id);
+  });
+
+  it('removes the shown instrument and moves to a survivor', () => {
+    const song = open([
+      createStringTrack('guitar', { measureCount: 2 }),
+      createDrumTrack({ measureCount: 2 }),
+    ]);
+    store().setCursor({ trackId: song.tracks[0]!.id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.removeInstrument(song.tracks[0]!.id);
+    const s = store().song!;
+    expect(s.tracks).toHaveLength(1);
+    expect(s.tracks[0]!.kind).toBe('drums');
+    expect(store().cursor!.trackId).toBe(s.tracks[0]!.id);
+  });
+
+  it('clears the cursor when the last instrument is removed', () => {
+    const song = open([createStringTrack('guitar', { measureCount: 2 })]);
+    store().setCursor({ trackId: song.tracks[0]!.id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.removeInstrument(song.tracks[0]!.id);
+    expect(store().song!.tracks).toHaveLength(0);
+    expect(store().cursor).toBeNull();
+  });
+});

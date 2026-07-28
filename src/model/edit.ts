@@ -593,9 +593,8 @@ export function addTrack(song: D<Song>, track: Track): void {
   touch(song);
 }
 
-/** Removes a track. Refuses to remove the last one — a song needs a staff. */
+/** Removes a track. A song may now have zero tracks (the empty state). */
 export function removeTrack(song: D<Song>, trackId: Id): boolean {
-  if (song.tracks.length <= 1) return false;
   const at = song.tracks.findIndex((t) => t.id === trackId);
   if (at < 0) return false;
   song.tracks.splice(at, 1);

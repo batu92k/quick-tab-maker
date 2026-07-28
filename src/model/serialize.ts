@@ -147,8 +147,10 @@ export function validateSong(raw: unknown): Song {
   requireString(raw.key.tonic, '$.key.tonic');
   requireString(raw.key.mode, '$.key.mode');
 
+  // A song may have no tracks: a new song starts empty and the user adds
+  // instruments. Layout, the scheduler and the renderer all tolerate zero
+  // tracks, so an empty song must round-trip through save/load and import.
   const tracks = requireArray(raw.tracks, '$.tracks');
-  if (tracks.length === 0) fail('a song needs at least one track', '$.tracks');
   tracks.forEach((t, i) => validateTrack(t, `$.tracks[${i}]`));
 
   // Migration guarantees the field, but a hand-edited file might carry junk the

@@ -12,7 +12,7 @@ import { create } from 'zustand';
 import * as F from './../model/fraction';
 import type { Fraction } from './../model/fraction';
 import { cloneSong } from '../model/serialize';
-import { createDrumTrack, createSong, createStringTrack } from '../model/song';
+import { createSong } from '../model/song';
 import { newSongId } from '../model/ids';
 import type { Cursor, Id, Song } from '../model/types';
 import { DRUM_ROW_COUNT } from '../theory/drums';
@@ -71,7 +71,7 @@ export interface EditorState {
   openSong: (song: Song) => void;
   /** Loads a saved song by id and opens it, flushing the current one first. */
   openById: (id: string) => Promise<void>;
-  /** Creates a fresh guitar/bass/drums song, saves and opens it. */
+  /** Creates a fresh empty song (no instruments), saves and opens it. */
   newSong: () => Promise<Song>;
   closeSong: () => Promise<void>;
   duplicateSong: () => Song | null;
@@ -151,16 +151,10 @@ export const useSongStore = create<EditorState>((set, get) => ({
 
   async newSong() {
     await getAutosaver().flush();
-    // A blank project still gets the full band, since there is no add-track UI
-    // yet and an empty song can otherwise only ever be a guitar part. It opens on
-    // a single empty bar — the user adds more as the part grows.
-    const song = createSong({
-      tracks: [
-        createStringTrack('guitar', { measureCount: 1 }),
-        createStringTrack('bass', { measureCount: 1 }),
-        createDrumTrack({ measureCount: 1 }),
-      ],
-    });
+    // A new project starts with no instruments: `openSong` lands it on the
+    // empty state (cursor null) and the user adds the instruments the part
+    // needs. The first-run demo (seeded in App on launch) keeps the full band.
+    const song = createSong({ tracks: [] });
     get().openSong(song);
     // Persist immediately so a new song survives a reload even if the user never
     // types anything, which is what makes the song list trustworthy.

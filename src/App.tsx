@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as C from './editor/commands';
 import { InstrumentDock } from './components/InstrumentDock';
 import { InstrumentPanel } from './components/InstrumentPanel';
-import { Mixer } from './components/Mixer';
+import { InstrumentSelector } from './components/InstrumentSelector';
 import { TheoryPanel } from './components/TheoryPanel';
 import { Transport } from './components/Transport';
 import type { ScaleOverlay } from './components/Fretboard';
@@ -111,7 +111,11 @@ function App() {
     (window as unknown as { __qtmPreviewPdf?: () => Promise<string> }).__qtmPreviewPdf =
       async () => {
         const { buildPdf } = await import('./export/pdf');
-        const doc = await buildPdf(useSongStore.getState().song!, {
+        // Mirror handleExportPdf: preview only the visible instrument.
+        const state = useSongStore.getState();
+        const s = state.song!;
+        const track = s.tracks.find((t) => t.id === state.cursor?.trackId);
+        const doc = await buildPdf(track ? { ...s, tracks: [track] } : s, {
           paper: settings.paperSize,
           orientation: settings.pdfOrientation,
           barsPerLine: settings.pdfBarsPerLine,
@@ -169,12 +173,17 @@ function App() {
 
   const handleExportPdf = useCallback(async () => {
     if (!song) return;
+    // The PDF matches what is on screen: only the visible instrument (the
+    // cursor's track). Export is disabled without an active track, so `track`
+    // is normally set; falling back to the whole song keeps the dev path safe.
+    const track = song.tracks.find((t) => t.id === cursor?.trackId);
+    const exportSong = track ? { ...song, tracks: [track] } : song;
     setExporting(true);
     try {
       // The PDF stack (jspdf, svg2pdf, react-dom/server) is loaded only here, on
       // demand, so it never weighs down the editor's startup.
       const { exportSongToPdf } = await import('./export/pdf');
-      await exportSongToPdf(song, {
+      await exportSongToPdf(exportSong, {
         paper: settings.paperSize,
         orientation: settings.pdfOrientation,
         barsPerLine: settings.pdfBarsPerLine,
@@ -189,6 +198,7 @@ function App() {
     }
   }, [
     song,
+    cursor,
     settings.paperSize,
     settings.pdfOrientation,
     settings.pdfBarsPerLine,
@@ -223,6 +233,17 @@ function App() {
     s.update({ instrumentDockCollapsed: !s.instrumentDockCollapsed });
   }, []);
 
+  // Show one instrument at a time: the score is laid out from just the cursor's
+  // track, while the rest of the app (editing, playback, the scheduler, the dock
+  // and panels) keeps using the full song. Switching the cursor to another track
+  // (later via a dropdown, or now with Ctrl+Up/Down) re-points this at that
+  // instrument. Falls back to the whole song when there is no active track, so
+  // nothing breaks before an instrument is chosen.
+  const displaySong = useMemo(
+    () => (song && activeTrack ? { ...song, tracks: [activeTrack] } : null),
+    [song, activeTrack],
+  );
+
   if (view === 'library') {
     return <SongLibrary currentSongId={song?.id ?? null} onClose={() => setView('editor')} />;
   }
@@ -250,7 +271,7 @@ function App() {
             type="button"
             className="qtm-button"
             onClick={() => setShowExport(true)}
-            disabled={!song}
+            disabled={!activeTrack}
           >
             Export PDF
           </button>
@@ -266,16 +287,18 @@ function App() {
         </div>
       </header>
 
-      {song && (
-        <div className="qtm-controls">
-          <Mixer />
-        </div>
-      )}
-
       {song && <EditorToolbar />}
 
       <main className="qtm-main">
-        {song && (
+        {song && song.tracks.length === 0 && (
+          <div className="qtm-empty">
+            <h2 className="qtm-empty-title">No instruments yet</h2>
+            <p className="qtm-empty-hint">
+              Add a guitar, bass or drums from the bar at the bottom to start writing.
+            </p>
+          </div>
+        )}
+        {displaySong && (
           <div className="qtm-sheet-tools">
             <button type="button" className="qtm-button" onClick={handleAddText}>
               Add text note
@@ -285,9 +308,9 @@ function App() {
             </span>
           </div>
         )}
-        {song && (
+        {displaySong && (
           <ScoreView
-            song={song}
+            song={displaySong}
             options={scoreOptions}
             cursor={cursor}
             playhead={playhead}
@@ -299,10 +322,12 @@ function App() {
             autoFocusAnnotation={autoFocusAnnotation}
           />
         )}
-        <p className="qtm-hint">
-          Click a position, then type a fret number. Arrow keys move, <kbd>[</kbd> and{' '}
-          <kbd>]</kbd> change the note value, <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.
-        </p>
+        {displaySong && (
+          <p className="qtm-hint">
+            Click a position, then type a fret number. Arrow keys move, <kbd>[</kbd> and{' '}
+            <kbd>]</kbd> change the note value, <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.
+          </p>
+        )}
       </main>
 
       {song && activeTrack && (
@@ -324,6 +349,8 @@ function App() {
           <InstrumentPanel scale={scaleOverlay} />
         </InstrumentDock>
       )}
+
+      {song && <InstrumentSelector />}
 
       <Notice />
 

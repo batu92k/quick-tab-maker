@@ -35,6 +35,10 @@ test('places a note on the score by clicking and typing', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Untitled Song');
   await expect(page.locator('.qtm-note')).toHaveCount(0);
 
+  // A new song starts with no instruments; add a guitar so there is a staff to
+  // click into.
+  await page.getByRole('combobox', { name: 'Add instrument' }).selectOption('guitar');
+
   // Click a guitar staff, then type a fret. The staff is an SVG group, so click
   // an absolute point inside its box with the mouse rather than the element
   // (the SVG root, not the group, receives pointer events). Any string/beat

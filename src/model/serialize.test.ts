@@ -83,12 +83,18 @@ describe('validation', () => {
     expect(() => songFromJson(JSON.stringify(broken))).toThrow(/tracks\[0\]\.tuning\[0\]/);
   });
 
-  it('rejects a song with no tracks, tempo or time signature', () => {
-    for (const field of ['tracks', 'tempoMap', 'timeSignatures']) {
+  it('rejects a song with no tempo or time signature', () => {
+    for (const field of ['tempoMap', 'timeSignatures']) {
       const broken = valid();
       broken[field] = [];
       expect(() => songFromJson(JSON.stringify(broken))).toThrow(SongParseError);
     }
+  });
+
+  it('accepts a song with no tracks — a new song starts empty', () => {
+    const empty = valid();
+    empty.tracks = [];
+    expect(() => songFromJson(JSON.stringify(empty))).not.toThrow();
   });
 
   it('rejects a fraction with a zero or negative denominator', () => {

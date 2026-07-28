@@ -355,9 +355,16 @@ describe('tracks', () => {
     expect(withDrums.tracks.map((t) => t.measures.length)).toEqual([6, 6]);
   });
 
-  it('refuses to remove the last track', () => {
+  it('removes the last track, leaving a track-less song', () => {
+    const song = apply(guitarSong(), (d) => {
+      expect(E.removeTrack(d, d.tracks[0]!.id)).toBe(true);
+    });
+    expect(song.tracks).toHaveLength(0);
+  });
+
+  it('refuses to remove a track that does not exist', () => {
     apply(guitarSong(), (d) => {
-      expect(E.removeTrack(d, d.tracks[0]!.id)).toBe(false);
+      expect(E.removeTrack(d, 'no-such-track')).toBe(false);
     });
   });
 

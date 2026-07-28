@@ -170,3 +170,26 @@ body {
   font-size: 13px;
   color: var(--qtm-text-muted);
 }
+
+.qtm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  text-align: center;
+  color: var(--qtm-text-muted);
+}
+
+.qtm-empty-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 650;
+  color: var(--qtm-text);
+}
+
+.qtm-empty-hint {
+  margin: 0;
+  font-size: 0.9rem;
+}

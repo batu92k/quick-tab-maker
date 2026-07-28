@@ -12,7 +12,14 @@ import * as E from '../model/edit';
 import * as F from '../model/fraction';
 import type { Fraction } from '../model/fraction';
 import { newAnnotationId } from '../model/ids';
-import { beatIndexAtStart, measureCapacity, measureFilled, timeSignatureAt } from '../model/song';
+import {
+  beatIndexAtStart,
+  createDrumTrack,
+  createStringTrack,
+  measureCapacity,
+  measureFilled,
+  timeSignatureAt,
+} from '../model/song';
 import {
   isDrumTrack,
   isStringTrack,
@@ -538,6 +545,60 @@ export function stepTrack(delta: number): void {
     beatIndex: 0,
     line: Math.min(cursor.line, lineCount - 1),
   });
+}
+
+/** Moves the cursor onto a specific track, keeping the bar position. */
+export function selectTrack(trackId: string): void {
+  const { song, cursor } = store();
+  if (!song) return;
+  const next = song.tracks.find((t) => t.id === trackId);
+  if (!next) return;
+  const lineCount = isStringTrack(next) ? next.tuning.length : DRUM_ROW_COUNT;
+  store().setCursor({
+    trackId: next.id,
+    measureIndex: Math.min(cursor?.measureIndex ?? 0, Math.max(0, next.measures.length - 1)),
+    beatIndex: 0,
+    line: Math.min(cursor?.line ?? 0, lineCount - 1),
+  });
+}
+
+/** Adds an instrument (padded to song length) and shows it. */
+export function addInstrument(kind: 'guitar' | 'bass' | 'drums'): void {
+  const track =
+    kind === 'drums'
+      ? createDrumTrack({ measureCount: 1 })
+      : createStringTrack(kind, { measureCount: 1 });
+  store().edit('Add instrument', (draft) => {
+    E.addTrack(draft, track);
+  });
+  // The freshly added instrument becomes the shown one.
+  selectTrack(track.id);
+}
+
+/**
+ * Removes an instrument. Keeps the cursor on a real instrument: if the removed
+ * one was shown, move to the nearest survivor; clear the cursor when none remain
+ * (the editor then shows its empty state).
+ */
+export function removeInstrument(trackId: string): void {
+  const { song, cursor } = store();
+  if (!song) return;
+  const index = song.tracks.findIndex((t) => t.id === trackId);
+  if (index < 0) return;
+
+  let applied = false;
+  store().edit('Remove instrument', (draft) => {
+    applied = E.removeTrack(draft, trackId);
+  });
+  if (!applied) return;
+
+  const remaining = store().song?.tracks ?? [];
+  if (remaining.length === 0) {
+    store().setCursor(null);
+  } else if (cursor?.trackId === trackId) {
+    const next = remaining[Math.min(index, remaining.length - 1)];
+    if (next) selectTrack(next.id);
+  }
 }
 
 /* -------------------------------------------------------------------------- */
