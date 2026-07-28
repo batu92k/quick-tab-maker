@@ -1,5 +1,12 @@
 .qtm-drumkit-wrap {
-  max-width: 560px;
+  /* A definite width so the kit sizes from itself, not from the text beside it.
+     The SVG is width:100% with no intrinsic size, so in the shrink-to-fit dock
+     the whole illustration used to resize whenever the neighbouring hint changed
+     length — most visibly shrinking on playback, when the long "click a drum"
+     hint is replaced by the short "Following the playhead". `max-width: 100%`
+     keeps it responsive on a narrow dock. */
+  width: 560px;
+  max-width: 100%;
 }
 
 .qtm-drumkit {
