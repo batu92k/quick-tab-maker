@@ -19,15 +19,19 @@ Songs live in your browser (IndexedDB) and export as portable `.qtm` JSON files.
 - **Standard drum notation** — a five-line percussion staff with conventional
   noteheads (crosses for cymbals, diamonds for bells), per-note stems (hands up,
   feet down), accents, and ghost notes.
+- **One instrument at a time** — a song starts empty; add guitar, bass, or drums
+  as the part grows. The sheet shows a single instrument, switched from a selector
+  bar below the dock that also carries its volume, mute, and solo. Playback still
+  sounds every instrument together.
 - **Playback** via Tone.js — transport with a synced playhead, metronome with
-  accents and count-in, loop region, tap tempo, and a per-track mixer
-  (volume / pan / mute / solo).
+  accents and count-in, loop region, and tap tempo.
 - **Key, scale & chord helper** — diatonic chords and suggested progressions for
   the song's key, with in-key notes and chord tones overlaid on the fretboard.
 - **Sticky instrument dock** — the fretboard/kit and key & scale helper stay
   pinned below the score while you scroll a long tab; collapsible to reclaim room.
-- **PDF export** — paginated A4/Letter output that reuses the on-screen renderer,
-  so the print matches the screen. Configurable orientation and bars per line.
+- **PDF export** — paginated A4/Letter output for the instrument you're viewing,
+  reusing the on-screen renderer so the print matches the screen. Configurable
+  orientation and bars per line.
 - **Song manager** — create, duplicate, rename, delete, import, and export songs.
 - **Theming & preferences** — light / dark / system themes, accent colour, UI and
   tab fonts, size scaling, and bars-per-line, all per-device.
