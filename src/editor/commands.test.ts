@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as F from '../model/fraction';
 import { createDrumTrack, createSong, createStringTrack } from '../model/song';
 import { isStringTrack, type Song, type StringTrack, type Track } from '../model/types';
+import { resetPlaybackForTesting, usePlaybackStore } from '../store/playbackStore';
 import { resetStoreForTesting, useSongStore } from '../store/songStore';
 import { rowForPiece } from '../theory/drums';
 import * as C from './commands';
@@ -33,6 +34,10 @@ const notesAt = (measure = 0, beat = 0) => guitar().measures[measure]?.beats[bea
 
 beforeEach(() => {
   resetStoreForTesting();
+  // The playback store's default snap is an eighth note (see playbackStore.ts),
+  // not "Off" — reset it too so every test starts from a known snap, and tests
+  // exercising snap-aware stepping do not depend on run order.
+  resetPlaybackForTesting();
 });
 
 describe('line and string mapping', () => {
@@ -139,8 +144,9 @@ describe('drum entry', () => {
 });
 
 describe('cursor movement', () => {
-  it('wraps to the next bar at the end of the current one', () => {
+  it('wraps to the next bar at the end of the current one (snap off)', () => {
     open();
+    usePlaybackStore.getState().setSnap(null);
     const id = guitar().id;
     store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0 });
     C.setFretAtCursor(1); // one beat exists, so the append slot is index 1
@@ -150,15 +156,17 @@ describe('cursor movement', () => {
     expect(store().cursor).toMatchObject({ measureIndex: 1, beatIndex: 0 });
   });
 
-  it('wraps back into the previous bar', () => {
+  it('wraps back into the previous bar (snap off)', () => {
     open();
+    usePlaybackStore.getState().setSnap(null);
     store().setCursor({ trackId: guitar().id, measureIndex: 1, beatIndex: 0, line: 0 });
     C.stepLeft();
     expect(store().cursor).toMatchObject({ measureIndex: 0 });
   });
 
-  it('stops at the very start rather than going negative', () => {
+  it('stops at the very start rather than going negative (snap off)', () => {
     open();
+    usePlaybackStore.getState().setSnap(null);
     store().setCursor({ trackId: guitar().id, measureIndex: 0, beatIndex: 0, line: 0 });
     C.stepLeft();
     expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 0 });
@@ -194,6 +202,147 @@ describe('cursor movement', () => {
 
     C.stepTrack(1); // wraps back to the first track
     expect(store().cursor!.trackId).toBe(song.tracks[0]!.id);
+  });
+});
+
+describe('snap-aware cursor movement', () => {
+  it('steps to the next empty grid slot in an otherwise empty bar', () => {
+    open();
+    usePlaybackStore.getState().setSnap(F.EIGHTH);
+    const id = guitar().id;
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0 });
+
+    C.stepRight();
+    expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 0, insertAt: F.EIGHTH });
+  });
+
+  it('lands exactly on an existing on-grid note rather than an insert slot', () => {
+    open();
+    usePlaybackStore.getState().setSnap(F.EIGHTH);
+    const id = guitar().id;
+
+    // A note at offset 0 and another at offset 1/4 (two eighths), leaving the
+    // eighth in between empty.
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.setFretAtCursor(0);
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 1, line: 0, insertAt: F.QUARTER });
+    C.setFretAtCursor(2);
+
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.stepRight();
+    // Two notes now exist (offsets 0 and 1/4), so the append-past-the-end
+    // insert slot is index 2.
+    expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 2, insertAt: F.EIGHTH });
+
+    C.stepRight();
+    expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 1 });
+    expect(store().cursor!.insertAt).toBeUndefined();
+  });
+
+  it('crosses into the next bar, landing on its first grid stop, once the current bar runs out', () => {
+    open();
+    usePlaybackStore.getState().setSnap(F.EIGHTH);
+    const id = guitar().id;
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0, insertAt: F.scale(F.EIGHTH, 7) });
+
+    C.stepRight();
+    expect(store().cursor).toMatchObject({ measureIndex: 1, beatIndex: 0 });
+    expect(store().cursor!.insertAt).toEqual(F.ZERO);
+  });
+
+  it('crosses back into the previous bar, landing on its last grid stop', () => {
+    open();
+    usePlaybackStore.getState().setSnap(F.EIGHTH);
+    const id = guitar().id;
+    store().setCursor({ trackId: id, measureIndex: 1, beatIndex: 0, line: 0 });
+
+    C.stepLeft();
+    expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 0 });
+    expect(store().cursor!.insertAt).toEqual(F.scale(F.EIGHTH, 7));
+  });
+
+  it('stays put at the last stop of the song\'s final bar', () => {
+    const song = open([createStringTrack('guitar', { measureCount: 1 })]);
+    usePlaybackStore.getState().setSnap(F.EIGHTH);
+    const id = song.tracks[0]!.id;
+    const last = F.scale(F.EIGHTH, 7);
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0, insertAt: last });
+
+    C.stepRight();
+    expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 0 });
+    expect(store().cursor!.insertAt).toEqual(last);
+  });
+
+  it('stays put at the very start of the song', () => {
+    open();
+    usePlaybackStore.getState().setSnap(F.EIGHTH);
+    const id = guitar().id;
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0 });
+
+    C.stepLeft();
+    expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 0 });
+    expect(store().cursor!.insertAt).toBeUndefined();
+  });
+
+  it('keeps the empty-slot position when moving up/down between strings', () => {
+    open();
+    usePlaybackStore.getState().setSnap(F.EIGHTH);
+    const id = guitar().id;
+    // Sit on an empty grid slot (the second eighth of an otherwise empty bar).
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.stepRight();
+    expect(store().cursor).toMatchObject({ beatIndex: 0, line: 0, insertAt: F.EIGHTH });
+
+    // Moving to another string must stay in the same beat, keeping insertAt.
+    C.stepDown();
+    expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 0, line: 1, insertAt: F.EIGHTH });
+
+    C.stepUp();
+    expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 0, line: 0, insertAt: F.EIGHTH });
+  });
+});
+
+describe('changing snap', () => {
+  it('re-aligns the cursor to the nearest quarter stop when snap coarsens', () => {
+    open();
+    usePlaybackStore.getState().setSnap(F.EIGHTH);
+    const id = guitar().id;
+    // 5/16: closer to the 1/4 line at 0.25 than to 0 or 0.5.
+    const midEighth = F.add(F.QUARTER, F.SIXTEENTH);
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0, insertAt: midEighth });
+
+    C.setSnap(F.QUARTER);
+    expect(usePlaybackStore.getState().snap).toEqual(F.QUARTER);
+    expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 0, insertAt: F.QUARTER });
+  });
+
+  it('leaves the cursor untouched when snap is turned off', () => {
+    open();
+    usePlaybackStore.getState().setSnap(F.EIGHTH);
+    const id = guitar().id;
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0, insertAt: F.EIGHTH });
+
+    C.setSnap(null);
+    expect(usePlaybackStore.getState().snap).toBeNull();
+    expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 0, insertAt: F.EIGHTH });
+  });
+
+  it('keeps the cursor on an existing off-grid note when the new grid still includes its onset', () => {
+    open();
+    const id = guitar().id;
+    store().setEntryDuration(F.EIGHTH);
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.setFretAtCursor(0); // beat 0: start 0, duration 1/8
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 1, line: 0 });
+    C.setFretAtCursor(1); // beat 1: start 1/8, duration 1/8
+
+    // Sit exactly on the second note (an eighth-note onset), then coarsen to
+    // quarter snap — the onset is still a valid stop even though it is not on
+    // the quarter grid.
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 1, line: 0 });
+    C.setSnap(F.QUARTER);
+    expect(store().cursor).toMatchObject({ measureIndex: 0, beatIndex: 1 });
+    expect(store().cursor!.insertAt).toBeUndefined();
   });
 });
 

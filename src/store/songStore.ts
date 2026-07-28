@@ -321,7 +321,21 @@ export const useSongStore = create<EditorState>((set, get) => ({
     const lineCount = track.kind === 'drums' ? DRUM_ROW_COUNT : track.tuning.length;
     const line = clamp(cursor.line + (delta.line ?? 0), 0, lineCount - 1);
 
-    set({ cursor: { trackId: cursor.trackId, measureIndex, beatIndex, line } });
+    // A line-only move (up/down between strings or drum voices) stays in the
+    // same beat, so an empty-slot cursor keeps its between-notes `insertAt`.
+    // Changing the beat or measure addresses a different slot, so it is dropped.
+    const changesSlot = (delta.beat ?? 0) !== 0 || (delta.measure ?? 0) !== 0;
+    const insertAt = changesSlot ? undefined : cursor.insertAt;
+
+    set({
+      cursor: {
+        trackId: cursor.trackId,
+        measureIndex,
+        beatIndex,
+        line,
+        ...(insertAt !== undefined ? { insertAt } : {}),
+      },
+    });
   },
 
   setEntryDuration: (entryDuration) => set({ entryDuration }),

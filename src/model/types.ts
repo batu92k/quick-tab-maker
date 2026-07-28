@@ -259,7 +259,9 @@ export interface Cursor {
    * When set, the cursor sits *between* notes: note entry inserts a new note at
    * this position in the bar, splitting whatever beat it lands inside, rather
    * than editing `beatIndex`. Set by clicking the sheet on a grid line between
-   * two notes; cleared by arrow movement and once a note is placed.
+   * two notes, or by stepping left/right onto an empty snap position. Preserved
+   * when moving up/down within the same beat; cleared once a note is placed or
+   * the cursor moves to a different beat or measure.
    */
   readonly insertAt?: Fraction;
 }

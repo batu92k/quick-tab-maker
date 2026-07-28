@@ -291,6 +291,73 @@ export function snapPositionInMeasure(
 }
 
 /**
+ * The stepping grid for keyboard navigation within a bar: every subdivision
+ * line up to (but not including) the bar's capacity, plus every existing
+ * beat onset — even an off-grid one, so nothing a note already occupies
+ * becomes unreachable. Sorted ascending and de-duplicated by value.
+ *
+ * The bar end itself is deliberately excluded; crossing into the next bar is
+ * the caller's job once `nextGridStop` runs out of stops.
+ */
+export function gridStops<N extends AnyNote>(
+  measure: Measure<N>,
+  capacity: Fraction,
+  snap: Fraction,
+): Fraction[] {
+  const stops: Fraction[] = [];
+  for (let k = 0; ; k++) {
+    const line = F.scale(snap, k);
+    if (!F.lt(line, capacity)) break;
+    stops.push(line);
+  }
+  for (const beat of measure.beats) stops.push(beat.start);
+
+  stops.sort(F.cmp);
+  const deduped: Fraction[] = [];
+  for (const stop of stops) {
+    if (deduped.length === 0 || !F.eq(deduped[deduped.length - 1]!, stop)) {
+      deduped.push(stop);
+    }
+  }
+  return deduped;
+}
+
+/**
+ * The nearest stop strictly beyond `current` in the direction of travel:
+ * forward (`dir > 0`) or backward (`dir < 0`). `null` means there is no such
+ * stop — the caller's signal to cross into the neighbouring bar.
+ */
+export function nextGridStop(stops: readonly Fraction[], current: Fraction, dir: number): Fraction | null {
+  if (dir > 0) {
+    for (const stop of stops) {
+      if (F.gt(stop, current)) return stop;
+    }
+    return null;
+  }
+  for (let i = stops.length - 1; i >= 0; i--) {
+    const stop = stops[i]!;
+    if (F.lt(stop, current)) return stop;
+  }
+  return null;
+}
+
+/**
+ * Resolves a bar offset to cursor coordinates, mirroring `ScoreView`'s click
+ * resolver: an offset that lands exactly on a beat's start addresses that
+ * beat directly, and anything else — a snap-grid line or note onset that
+ * currently has nothing there — becomes an insert position past the last
+ * beat, the same shape note entry already expects.
+ */
+export function resolveOffsetToCursorParts<N extends AnyNote>(
+  measure: Measure<N>,
+  offset: Fraction,
+): { beatIndex: number; insertAt?: Fraction } {
+  const onset = beatIndexAtStart(measure, offset);
+  if (onset >= 0) return { beatIndex: onset };
+  return { beatIndex: measure.beats.length, insertAt: offset };
+}
+
+/**
  * Recomputes each beat's `start` so beats sit back-to-back from zero.
  *
  * Tab entry is sequential — a user types notes left to right and changes a

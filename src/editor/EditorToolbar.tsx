@@ -160,9 +160,7 @@ export function EditorToolbar() {
           <select
             className="qtm-toolbar-select"
             value={snapIndex(snap)}
-            onChange={(e) =>
-              usePlaybackStore.getState().setSnap(SNAP_OPTIONS[Number(e.target.value)]!.value)
-            }
+            onChange={(e) => C.setSnap(SNAP_OPTIONS[Number(e.target.value)]!.value)}
           >
             {SNAP_OPTIONS.map((o, i) => (
               <option key={o.label} value={i}>

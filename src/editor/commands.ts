@@ -16,8 +16,12 @@ import {
   beatIndexAtStart,
   createDrumTrack,
   createStringTrack,
+  gridStops,
   measureCapacity,
   measureFilled,
+  nextGridStop,
+  resolveOffsetToCursorParts,
+  snapPositionInMeasure,
   timeSignatureAt,
 } from '../model/song';
 import {
@@ -26,6 +30,7 @@ import {
   type AnyNote,
   type Cursor,
   type DrumPiece,
+  type Measure,
   type Note,
   type Song,
   type Track,
@@ -34,6 +39,7 @@ import { defaultPieceForRow, rowForPiece, DRUM_ROW_COUNT } from '../theory/drums
 import { midiToFretPositions, midiToPitch, specOf } from '../theory/midi';
 import type { NoteInputEvent } from './input/events';
 import { useSongStore, type EditorState } from '../store/songStore';
+import { usePlaybackStore } from '../store/playbackStore';
 import * as D from './durations';
 
 type Store = EditorState;
@@ -663,49 +669,173 @@ export function removeAnnotationIfEmpty(id: string): void {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * The cursor's current bar offset, as an exact Fraction: the position an
+ * insert cursor already carries, the start of the beat it sits on, or —
+ * parked past the last beat — how much of the bar is filled.
+ */
+function cursorOffset(
+  measure: { readonly beats: readonly { readonly start: Fraction; readonly duration: Fraction }[] },
+  cursor: Cursor,
+): Fraction {
+  if (cursor.insertAt !== undefined) return cursor.insertAt;
+  if (cursor.beatIndex < measure.beats.length) return measure.beats[cursor.beatIndex]!.start;
+  return measureFilled(measure);
+}
+
+/**
+ * Changes the snap grid and, if a cursor is sitting on the sheet, re-aligns it
+ * to the nearest stop on the *new* grid — otherwise switching from 1/8 to 1/4
+ * snap could leave the cursor stranded between quarter lines. "Off" (`null`)
+ * only changes what `stepLeft`/`stepRight` do next; it never moves the cursor,
+ * since there is no grid to align to.
+ */
+export function setSnap(snap: Fraction | null): void {
+  usePlaybackStore.getState().setSnap(snap);
+  if (snap === null) return;
+
+  const { cursor, song } = store();
+  const track = currentTrack();
+  if (!cursor || !song || !track) return;
+  const measure: Measure<AnyNote> | undefined = track.measures[cursor.measureIndex];
+  if (!measure) return;
+
+  const offset = cursorOffset(measure, cursor);
+  const capacity = measureCapacity(song, track, cursor.measureIndex);
+  const snapped = snapPositionInMeasure(measure.beats, capacity, snap, F.toNumber(offset));
+  store().setCursor({
+    trackId: cursor.trackId,
+    measureIndex: cursor.measureIndex,
+    line: cursor.line,
+    ...resolveOffsetToCursorParts(measure, snapped),
+  });
+}
+
+/**
  * Moves one slot right, wrapping into the next bar at the end of the current
  * one — which is what makes typing a run of notes feel continuous rather than
  * stopping dead at every bar line.
+ *
+ * With snap off, this steps by index over existing beats only, as it always
+ * has. With a snap set, it steps by the snap grid instead — landing on every
+ * empty subdivision as well as existing notes — so a note can be placed
+ * anywhere without first filling in what comes before it.
  */
 export function stepRight(): void {
-  const { cursor } = store();
+  const { cursor, song } = store();
   const track = currentTrack();
   if (!cursor || !track) return;
 
-  const measure = track.measures[cursor.measureIndex];
-  const lastSlot = measure ? measure.beats.length : 0;
+  const snap = usePlaybackStore.getState().snap;
+  // Typed against the union default (`AnyNote`) rather than left to inference:
+  // `track` can be either track kind, and a generic call below cannot unify
+  // `Measure<Note> | Measure<DrumNote>` down to one `N` on its own.
+  const measure: Measure<AnyNote> | undefined = track.measures[cursor.measureIndex];
 
-  if (cursor.beatIndex >= lastSlot && cursor.measureIndex < track.measures.length - 1) {
-    // Explicit fields, not a spread: moving off an insert cursor must drop its
-    // between-notes position so the next note goes where the cursor now is.
+  if (snap === null) {
+    const lastSlot = measure ? measure.beats.length : 0;
+
+    if (cursor.beatIndex >= lastSlot && cursor.measureIndex < track.measures.length - 1) {
+      // Explicit fields, not a spread: moving off an insert cursor must drop its
+      // between-notes position so the next note goes where the cursor now is.
+      store().setCursor({
+        trackId: cursor.trackId,
+        measureIndex: cursor.measureIndex + 1,
+        beatIndex: 0,
+        line: cursor.line,
+      });
+      return;
+    }
+    store().moveCursor({ beat: 1 });
+    return;
+  }
+
+  if (!song || !measure) return;
+  const offset = cursorOffset(measure, cursor);
+  const capacity = measureCapacity(song, track, cursor.measureIndex);
+  const stops = gridStops(measure, capacity, snap);
+  const next = nextGridStop(stops, offset, 1);
+
+  if (next !== null) {
     store().setCursor({
       trackId: cursor.trackId,
-      measureIndex: cursor.measureIndex + 1,
-      beatIndex: 0,
+      measureIndex: cursor.measureIndex,
       line: cursor.line,
+      ...resolveOffsetToCursorParts(measure, next),
     });
     return;
   }
-  store().moveCursor({ beat: 1 });
+
+  if (cursor.measureIndex >= track.measures.length - 1) return;
+  const nextMeasure: Measure<AnyNote> | undefined = track.measures[cursor.measureIndex + 1];
+  if (!nextMeasure) return;
+  const nextCapacity = measureCapacity(song, track, cursor.measureIndex + 1);
+  const nextStops = gridStops(nextMeasure, nextCapacity, snap);
+  const firstStop = nextStops[0] ?? F.ZERO;
+  store().setCursor({
+    trackId: cursor.trackId,
+    measureIndex: cursor.measureIndex + 1,
+    line: cursor.line,
+    ...resolveOffsetToCursorParts(nextMeasure, firstStop),
+  });
 }
 
-/** Moves one slot left, wrapping back into the previous bar. */
+/**
+ * Moves one slot left, wrapping back into the previous bar.
+ *
+ * Mirrors `stepRight`: index-based with snap off, grid-based (landing on
+ * empty subdivisions too) with a snap set.
+ */
 export function stepLeft(): void {
-  const { cursor } = store();
+  const { cursor, song } = store();
   const track = currentTrack();
   if (!cursor || !track) return;
 
-  if (cursor.beatIndex === 0 && cursor.measureIndex > 0) {
-    const previous = track.measures[cursor.measureIndex - 1];
+  const snap = usePlaybackStore.getState().snap;
+  const measure: Measure<AnyNote> | undefined = track.measures[cursor.measureIndex];
+
+  if (snap === null) {
+    if (cursor.beatIndex === 0 && cursor.measureIndex > 0) {
+      const previous = track.measures[cursor.measureIndex - 1];
+      store().setCursor({
+        trackId: cursor.trackId,
+        measureIndex: cursor.measureIndex - 1,
+        beatIndex: previous ? previous.beats.length : 0,
+        line: cursor.line,
+      });
+      return;
+    }
+    store().moveCursor({ beat: -1 });
+    return;
+  }
+
+  if (!song || !measure) return;
+  const offset = cursorOffset(measure, cursor);
+  const capacity = measureCapacity(song, track, cursor.measureIndex);
+  const stops = gridStops(measure, capacity, snap);
+  const next = nextGridStop(stops, offset, -1);
+
+  if (next !== null) {
     store().setCursor({
       trackId: cursor.trackId,
-      measureIndex: cursor.measureIndex - 1,
-      beatIndex: previous ? previous.beats.length : 0,
+      measureIndex: cursor.measureIndex,
       line: cursor.line,
+      ...resolveOffsetToCursorParts(measure, next),
     });
     return;
   }
-  store().moveCursor({ beat: -1 });
+
+  if (cursor.measureIndex <= 0) return;
+  const previousMeasure: Measure<AnyNote> | undefined = track.measures[cursor.measureIndex - 1];
+  if (!previousMeasure) return;
+  const previousCapacity = measureCapacity(song, track, cursor.measureIndex - 1);
+  const previousStops = gridStops(previousMeasure, previousCapacity, snap);
+  const lastStop = previousStops[previousStops.length - 1] ?? F.ZERO;
+  store().setCursor({
+    trackId: cursor.trackId,
+    measureIndex: cursor.measureIndex - 1,
+    line: cursor.line,
+    ...resolveOffsetToCursorParts(previousMeasure, lastStop),
+  });
 }
 
 export const stepUp = (): void => store().moveCursor({ line: -1 });
