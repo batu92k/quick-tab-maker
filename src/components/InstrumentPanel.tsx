@@ -19,7 +19,6 @@ import { beatAtOffset } from '../model/song';
 import { isStringTrack, type Beat, type DrumNote, type DrumPiece } from '../model/types';
 import { usePlaybackStore } from '../store/playbackStore';
 import { useSongStore } from '../store/songStore';
-import { rowForPiece } from '../theory/drums';
 import { DRUM_PIECE_TO_GM, midiToPitch, specOf, stringFretToMidi } from '../theory/midi';
 import { DrumKit } from './DrumKit';
 import { Fretboard, type ScaleOverlay } from './Fretboard';
@@ -150,8 +149,6 @@ export function InstrumentPanel({ scale }: InstrumentPanelProps = {}) {
     );
   }
 
-  const cursorRowPieces = activePieces.filter((p) => rowForPiece(p) === cursor.line);
-
   return (
     <section className="qtm-instrument" aria-label="Drum kit input">
       <header className="qtm-instrument-header">
@@ -160,12 +157,9 @@ export function InstrumentPanel({ scale }: InstrumentPanelProps = {}) {
           {hint ?? 'Click a drum, or use the letter keys. Hits land on the cursor’s beat.'}
         </span>
       </header>
+      {/* No "Playing: …" readout: the kit lights up the active pads, and a line
+          that popped in and out under it just made the dock jump height. */}
       <DrumKit onHit={handleDrumHit} activePieces={activePieces} flashPiece={flash} />
-      {(following ? activePieces.length > 0 : cursorRowPieces.length > 0) && (
-        <p className="qtm-instrument-note">
-          {following ? 'Playing' : 'On this beat'}: {activePieces.join(', ')}
-        </p>
-      )}
     </section>
   );
 }
