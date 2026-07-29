@@ -563,3 +563,33 @@ describe('instrument add/remove', () => {
     expect(store().cursor).toBeNull();
   });
 });
+
+describe('setTuning', () => {
+  it('changes the track tuning', () => {
+    open();
+    const id = guitar().id;
+    const newTuning = ['D2', 'A2', 'D3', 'G3', 'B3', 'E4'];
+    C.setTuning(id, newTuning);
+    expect(guitar().tuning).toEqual(newTuning);
+  });
+
+  it('records an undo history entry', () => {
+    open();
+    const id = guitar().id;
+    const before = store().past.length;
+    C.setTuning(id, ['D2', 'A2', 'D3', 'G3', 'B3', 'E4']);
+    expect(store().past.length).toBe(before + 1);
+  });
+
+  it('drops notes stranded on strings the new tuning removes', () => {
+    open();
+    const id = guitar().id;
+    // Line 0 is the top line, which maps to the highest string index (5).
+    store().setCursor({ trackId: id, measureIndex: 0, beatIndex: 0, line: 0 });
+    C.setFretAtCursor(3);
+    expect(notesAt()[0]).toMatchObject({ string: 5, fret: 3 });
+
+    C.setTuning(id, ['E2', 'A2', 'D3', 'G3']); // 4-string tuning drops string 5
+    expect(notesAt()).toEqual([]);
+  });
+});

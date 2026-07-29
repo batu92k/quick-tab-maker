@@ -133,6 +133,49 @@ export const TUNINGS = {
 export const DEFAULT_GUITAR_TUNING: readonly string[] = TUNINGS.guitar.standard;
 export const DEFAULT_BASS_TUNING: readonly string[] = TUNINGS.bass.standard;
 
+export interface TuningPreset {
+  readonly key: string;
+  readonly label: string;
+  readonly tuning: readonly string[];
+}
+
+/**
+ * `TUNINGS` with a display label attached to each entry, in declaration order,
+ * for the settings panel's tuning picker. References `TUNINGS` rather than
+ * copying it, so the tuning data itself has one source of truth.
+ */
+export const TUNING_PRESETS: Record<'guitar' | 'bass', readonly TuningPreset[]> = {
+  guitar: [
+    { key: 'standard', label: 'Standard', tuning: TUNINGS.guitar.standard },
+    { key: 'dropD', label: 'Drop D', tuning: TUNINGS.guitar.dropD },
+    { key: 'halfStepDown', label: 'Half Step Down', tuning: TUNINGS.guitar.halfStepDown },
+    { key: 'fullStepDown', label: 'Full Step Down', tuning: TUNINGS.guitar.fullStepDown },
+    { key: 'dropC', label: 'Drop C', tuning: TUNINGS.guitar.dropC },
+    { key: 'openG', label: 'Open G', tuning: TUNINGS.guitar.openG },
+    { key: 'openD', label: 'Open D', tuning: TUNINGS.guitar.openD },
+    { key: 'dadgad', label: 'DADGAD', tuning: TUNINGS.guitar.dadgad },
+    { key: 'sevenString', label: '7-String', tuning: TUNINGS.guitar.sevenString },
+  ],
+  bass: [
+    { key: 'standard', label: 'Standard', tuning: TUNINGS.bass.standard },
+    { key: 'dropD', label: 'Drop D', tuning: TUNINGS.bass.dropD },
+    { key: 'fiveString', label: '5-String', tuning: TUNINGS.bass.fiveString },
+    { key: 'sixString', label: '6-String', tuning: TUNINGS.bass.sixString },
+  ],
+};
+
+/**
+ * Finds which preset (if any) a tuning array exactly matches, so the settings
+ * panel can show the current selection. Returns null for a tuning that matches
+ * no preset for this kind.
+ */
+export function presetKeyForTuning(kind: 'guitar' | 'bass', tuning: readonly string[]): string | null {
+  const preset = TUNING_PRESETS[kind].find(
+    (p) => p.tuning.length === tuning.length && p.tuning.every((note, i) => note === tuning[i]),
+  );
+  return preset?.key ?? null;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Drums                                                                      */
 /* -------------------------------------------------------------------------- */

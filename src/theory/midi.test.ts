@@ -109,6 +109,45 @@ describe('tunings', () => {
   });
 });
 
+describe('tuning presets', () => {
+  const kinds = ['guitar', 'bass'] as const;
+
+  it('references TUNINGS rather than duplicating it', () => {
+    for (const kind of kinds) {
+      const tunings: Record<string, readonly string[]> = M.TUNINGS[kind];
+      for (const preset of M.TUNING_PRESETS[kind]) {
+        expect(tunings).toHaveProperty(preset.key);
+        expect(preset.tuning).toBe(tunings[preset.key]);
+      }
+    }
+  });
+
+  it('gives every preset a non-empty label', () => {
+    for (const kind of kinds) {
+      for (const preset of M.TUNING_PRESETS[kind]) {
+        expect(preset.label.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('round-trips presetKeyForTuning for every preset', () => {
+    for (const kind of kinds) {
+      for (const preset of M.TUNING_PRESETS[kind]) {
+        expect(M.presetKeyForTuning(kind, preset.tuning)).toBe(preset.key);
+      }
+    }
+  });
+
+  it('returns null for a tuning that matches no preset', () => {
+    expect(M.presetKeyForTuning('guitar', ['X9', 'Y9'])).toBeNull();
+  });
+
+  it('returns null when the tuning is a prefix of a preset (length must match)', () => {
+    const shortened = M.TUNINGS.guitar.standard.slice(0, -1);
+    expect(M.presetKeyForTuning('guitar', shortened)).toBeNull();
+  });
+});
+
 describe('drum mapping', () => {
   it('uses the General MIDI percussion numbers', () => {
     expect(M.DRUM_PIECE_TO_GM.kick).toBe(36);

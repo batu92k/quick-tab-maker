@@ -481,6 +481,13 @@ export function setMixer(trackId: string, changes: Partial<Track['mixer']>): voi
   });
 }
 
+/** Retunes one string track, dropping notes on strings the new tuning removes. */
+export function setTuning(trackId: string, tuning: readonly string[]): void {
+  store().edit('Tuning', (draft) => {
+    E.setTuning(draft, trackId, tuning);
+  });
+}
+
 export function insertMeasureAtCursor(): void {
   const { cursor } = store();
   store().edit('Insert bar', (draft) => E.insertMeasure(draft, cursor?.measureIndex ?? 0));

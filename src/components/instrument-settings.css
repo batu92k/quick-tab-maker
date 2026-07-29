@@ -1,0 +1,52 @@
+/* Instrument settings dialog: sized and framed like the PDF export dialog so
+   the two modals feel like one family, but kept as its own class since the
+   two are not otherwise related. Also holds the in-dialog "this will drop
+   notes" confirm step for a retune to fewer strings. */
+
+.qtm-instrument-dialog {
+  width: min(340px, 100%);
+  padding: 18px 20px 20px;
+  background: var(--qtm-bg);
+  border: 1px solid var(--qtm-border);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 28%);
+}
+
+.qtm-tuning-readout {
+  margin-top: 8px;
+  font-family: var(--qtm-font-tab, monospace);
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  color: var(--qtm-text);
+}
+
+.qtm-tuning-warning {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: var(--qtm-surface);
+  border: 1px solid var(--qtm-border);
+  border-radius: 8px;
+}
+
+.qtm-tuning-warning p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--qtm-text);
+}
+
+.qtm-tuning-warning-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* Base danger styling — library.css only defines the :hover state, assuming a
+   base rule exists elsewhere; instrument-selector.css's destructive controls
+   use the same red inline rather than a shared class, so this is the first
+   reusable base rule for it. */
+.qtm-button--danger {
+  color: #fff;
+  background: #c0392b;
+  border-color: #c0392b;
+}

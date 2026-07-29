@@ -108,6 +108,22 @@
   border-color: var(--qtm-accent);
 }
 
+.qtm-selector-gear {
+  width: 30px;
+  height: 30px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--qtm-text-muted);
+  background: var(--qtm-surface);
+  border: 1px solid var(--qtm-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.qtm-selector-gear:hover {
+  border-color: var(--qtm-accent);
+}
+
 .qtm-selector-remove {
   width: 30px;
   height: 30px;

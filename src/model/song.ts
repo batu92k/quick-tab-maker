@@ -203,6 +203,23 @@ export function trackLineCount(track: Track, drumRowCount: number): number {
   return isStringTrack(track) ? track.tuning.length : drumRowCount;
 }
 
+/**
+ * How many notes a retune to `stringCount` strings would delete — every note
+ * sitting on a string index the shorter tuning no longer has. Lets the UI warn
+ * before a retune drops notes; `setTuning` does the actual dropping.
+ */
+export function notesOnStringsBeyond(track: StringTrack, stringCount: number): number {
+  let count = 0;
+  for (const measure of track.measures) {
+    for (const beat of measure.beats) {
+      for (const note of beat.notes) {
+        if (note.string >= stringCount) count += 1;
+      }
+    }
+  }
+  return count;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Beat lookup                                                                */
 /* -------------------------------------------------------------------------- */

@@ -7,6 +7,7 @@ import {
   gridStops,
   measureCapacity,
   nextGridStop,
+  notesOnStringsBeyond,
   resolveOffsetToCursorParts,
 } from './song';
 import type { Measure, Note } from './types';
@@ -100,5 +101,45 @@ describe('resolveOffsetToCursorParts', () => {
       beatIndex: 0,
       insertAt: F.ZERO,
     });
+  });
+});
+
+describe('notesOnStringsBeyond', () => {
+  function note(string: number): Note {
+    return { id: `n${string}`, string, fret: 0, techniques: [] };
+  }
+
+  it('returns 0 when every note sits within the string count', () => {
+    const track = createStringTrack('guitar', { measureCount: 1 });
+    const measure: Measure<Note> = {
+      ...track.measures[0]!,
+      beats: [createBeat(F.ZERO, Q, [note(0), note(5)])],
+    };
+    const withMeasure = { ...track, measures: [measure] };
+    expect(notesOnStringsBeyond(withMeasure, 6)).toBe(0);
+  });
+
+  it('counts notes across multiple measures and beats on vanishing strings', () => {
+    const track = createStringTrack('guitar', { measureCount: 2 });
+    const measureA: Measure<Note> = {
+      ...track.measures[0]!,
+      beats: [createBeat(F.ZERO, Q, [note(0)]), createBeat(Q, Q, [note(4), note(5)])],
+    };
+    const measureB: Measure<Note> = {
+      ...track.measures[1]!,
+      beats: [createBeat(F.ZERO, Q, [note(5)])],
+    };
+    const withMeasures = { ...track, measures: [measureA, measureB] };
+    expect(notesOnStringsBeyond(withMeasures, 4)).toBe(3);
+  });
+
+  it('treats the boundary as inclusive of the dropped index', () => {
+    const track = createStringTrack('guitar', { measureCount: 1 });
+    const measure: Measure<Note> = {
+      ...track.measures[0]!,
+      beats: [createBeat(F.ZERO, Q, [note(3), note(4)])],
+    };
+    const withMeasure = { ...track, measures: [measure] };
+    expect(notesOnStringsBeyond(withMeasure, 4)).toBe(1);
   });
 });

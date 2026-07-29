@@ -12,17 +12,20 @@
  * did, kept here now that this bar owns the faders.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { isAudible } from '../audio/schedule';
 import * as C from '../editor/commands';
+import { isStringTrack } from '../model/types';
 import { useSongStore } from '../store/songStore';
 import { usePlaybackStore } from '../store/playbackStore';
+import { InstrumentSettingsDialog } from './InstrumentSettingsDialog';
 import './instrument-selector.css';
 
 export function InstrumentSelector() {
   const song = useSongStore((s) => s.song);
   const cursor = useSongStore((s) => s.cursor);
   const syncMixers = usePlaybackStore((s) => s.syncMixers);
+  const [showSettings, setShowSettings] = useState(false);
 
   // The document is the source of truth; the engine follows it so undo moves
   // the faders too and a change takes effect mid-playback.
@@ -30,9 +33,15 @@ export function InstrumentSelector() {
     syncMixers();
   }, [song, syncMixers]);
 
-  if (!song) return null;
+  const activeTrack = song?.tracks.find((t) => t.id === cursor?.trackId);
 
-  const activeTrack = song.tracks.find((t) => t.id === cursor?.trackId);
+  // A drum track has no tuning; don't leave the dialog open with stale data
+  // if the cursor moves off a string track while it's showing.
+  useEffect(() => {
+    if (!activeTrack || !isStringTrack(activeTrack)) setShowSettings(false);
+  }, [activeTrack]);
+
+  if (!song) return null;
 
   return (
     <section className="qtm-selector" aria-label="Instrument selector">
@@ -48,6 +57,18 @@ export function InstrumentSelector() {
               ))}
             </select>
           </label>
+
+          {isStringTrack(activeTrack) && (
+            <button
+              type="button"
+              className="qtm-selector-gear"
+              aria-label={`${activeTrack.name} settings`}
+              title="Instrument settings (tuning)"
+              onClick={() => setShowSettings(true)}
+            >
+              ⚙
+            </button>
+          )}
 
           <div
             className={`qtm-selector-mix${
@@ -110,6 +131,10 @@ export function InstrumentSelector() {
           </button>
         )}
       </div>
+
+      {showSettings && activeTrack && isStringTrack(activeTrack) && (
+        <InstrumentSettingsDialog track={activeTrack} onClose={() => setShowSettings(false)} />
+      )}
     </section>
   );
 }
