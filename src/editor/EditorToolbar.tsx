@@ -139,6 +139,14 @@ export function EditorToolbar() {
         <button
           type="button"
           className="qtm-tool qtm-tool--wide"
+          title="Duplicate this track's bar (Ctrl + D)"
+          onClick={C.duplicateMeasureAtCursor}
+        >
+          Duplicate bar
+        </button>
+        <button
+          type="button"
+          className="qtm-tool qtm-tool--wide"
           title="Delete this track's bar (Ctrl + Backspace)"
           onClick={C.deleteMeasureAtCursor}
         >

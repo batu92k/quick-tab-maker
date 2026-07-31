@@ -292,6 +292,77 @@ describe('measures', () => {
     });
   });
 
+  describe('duplicateMeasure', () => {
+    it('inserts a copy at index+1 in that track only', () => {
+      const song = createSong({
+        tracks: [createStringTrack('guitar', { measureCount: 4 }), createDrumTrack({ measureCount: 4 })],
+      });
+      const duplicated = apply(song, (d) => {
+        expect(E.duplicateMeasure(d, d.tracks[0]!.id, 1)).toBe(true);
+      });
+      expect(duplicated.tracks.map((t) => t.measures.length)).toEqual([5, 4]);
+    });
+
+    it('copies musical content with fresh ids for the measure, beats and notes', () => {
+      const song = apply(guitarSong(), (d) => {
+        const id = d.tracks[0]!.id;
+        E.setNote(d, id, 0, 0, 0, 3, Q);
+        E.setNote(d, id, 0, 1, 1, 5, Q);
+      });
+      const source = measureOf(song, 0);
+
+      const duplicated = apply(song, (d) => {
+        expect(E.duplicateMeasure(d, d.tracks[0]!.id, 0)).toBe(true);
+      });
+      const copy = measureOf(duplicated, 1);
+
+      expect(copy.id).not.toBe(source.id);
+      expect(copy.beats).toHaveLength(source.beats.length);
+      copy.beats.forEach((beat, i) => {
+        const sourceBeat = source.beats[i]!;
+        expect(beat.id).not.toBe(sourceBeat.id);
+        expect(beat.start).toEqual(sourceBeat.start);
+        expect(beat.duration).toEqual(sourceBeat.duration);
+        expect(beat.notes).toHaveLength(sourceBeat.notes.length);
+        beat.notes.forEach((note, j) => {
+          const sourceNote = sourceBeat.notes[j]!;
+          expect(note.id).not.toBe(sourceNote.id);
+          expect(note.string).toBe(sourceNote.string);
+          expect(note.fret).toBe(sourceNote.fret);
+          expect(note.techniques).toEqual(sourceNote.techniques);
+        });
+      });
+      // Original bar is untouched.
+      expect(duplicated.tracks[0]!.measures[0]).toEqual(source);
+    });
+
+    it('refuses an out-of-range index and leaves all tracks unchanged', () => {
+      const song = createSong({
+        tracks: [createStringTrack('guitar', { measureCount: 4 }), createDrumTrack({ measureCount: 4 })],
+      });
+      apply(song, (d) => {
+        expect(E.duplicateMeasure(d, d.tracks[0]!.id, -1)).toBe(false);
+        expect(E.duplicateMeasure(d, d.tracks[0]!.id, 4)).toBe(false);
+      });
+      expect(song.tracks.map((t) => t.measures.length)).toEqual([4, 4]);
+    });
+
+    it('duplicates a drum bar', () => {
+      const song = apply(drumSong(), (d) => {
+        E.toggleDrumNote(d, d.tracks[0]!.id, 0, 0, 'kick', Q);
+      });
+      const duplicated = apply(song, (d) => {
+        expect(E.duplicateMeasure(d, d.tracks[0]!.id, 0)).toBe(true);
+      });
+      expect(duplicated.tracks[0]!.measures).toHaveLength(5);
+      const source = song.tracks[0]!.measures[0]!;
+      const copy = duplicated.tracks[0]!.measures[1]!;
+      expect(copy.id).not.toBe(source.id);
+      expect(copy.beats[0]!.notes).toHaveLength(1);
+      expect(copy.beats[0]!.notes[0]!.id).not.toBe(source.beats[0]!.notes[0]!.id);
+    });
+  });
+
   it('moves later tempo markers when a bar is inserted', () => {
     const song = apply(guitarSong(), (d) => {
       E.setTempo(d, 90, 2);

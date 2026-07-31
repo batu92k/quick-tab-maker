@@ -79,6 +79,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   { key: 'enter', ctrl: true, label: 'Insert bar here', group: 'Structure', run: C.insertMeasureAtCursor },
   { key: 'backspace', ctrl: true, label: 'Delete bar (this track)', group: 'Structure', run: C.deleteMeasureAtCursor },
   { key: 'backspace', ctrl: true, shift: true, label: 'Clear bar (keep it aligned)', group: 'Structure', run: C.clearMeasureAtCursor },
+  { key: 'd', ctrl: true, label: 'Duplicate bar', group: 'Structure', run: C.duplicateMeasureAtCursor },
 
   /* Playback. Bare Space already places a drum hit, which is worth more here
      than matching a media player: note entry is what the user is doing most. */

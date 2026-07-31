@@ -527,6 +527,23 @@ export function clearMeasureAtCursor(): void {
   });
 }
 
+/** Duplicates the cursor's bar in its track, moving the cursor onto the copy. */
+export function duplicateMeasureAtCursor(): void {
+  const { cursor } = store();
+  if (!cursor) return;
+  let applied = false;
+  store().edit('Duplicate bar', (draft) => {
+    applied = E.duplicateMeasure(draft, cursor.trackId, cursor.measureIndex);
+  });
+  if (!applied) return;
+  store().setCursor({
+    trackId: cursor.trackId,
+    measureIndex: cursor.measureIndex + 1,
+    beatIndex: 0,
+    line: cursor.line,
+  });
+}
+
 /** Keeps the cursor on a real bar and beat after its track changes shape. */
 function clampCursorToTrack(): void {
   const { song, cursor } = store();

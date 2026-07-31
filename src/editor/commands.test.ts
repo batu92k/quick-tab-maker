@@ -502,6 +502,25 @@ describe('structure', () => {
     C.deleteMeasureAtCursor();
     expect(guitar().measures).toHaveLength(4);
   });
+
+  it('duplicates the cursor bar, growing the track by one', () => {
+    open();
+    store().setCursor({ trackId: guitar().id, measureIndex: 1, beatIndex: 0, line: 0 });
+    C.duplicateMeasureAtCursor();
+    expect(guitar().measures).toHaveLength(5);
+  });
+
+  it('moves the cursor onto the new copy', () => {
+    open();
+    store().setCursor({ trackId: guitar().id, measureIndex: 1, beatIndex: 2, line: 3 });
+    C.duplicateMeasureAtCursor();
+    expect(store().cursor).toMatchObject({
+      trackId: guitar().id,
+      measureIndex: 2,
+      beatIndex: 0,
+      line: 3,
+    });
+  });
 });
 
 describe('text annotations', () => {

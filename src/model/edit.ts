@@ -17,7 +17,7 @@
 import type { Draft } from 'immer';
 import * as F from './fraction';
 import type { Fraction } from './fraction';
-import { newNoteId } from './ids';
+import { newBeatId, newMeasureId, newNoteId } from './ids';
 import { createBeat, createMeasure, measureCapacity } from './song';
 import {
   isDrumTrack,
@@ -519,6 +519,33 @@ export function clearMeasure(song: D<Song>, trackId: Id, index: number): boolean
   const measure = getTrack(song, trackId)?.measures[index];
   if (!measure || measure.beats.length === 0) return false;
   measure.beats = [];
+  touch(song);
+  return true;
+}
+
+/**
+ * Inserts a deep copy of one track's bar directly after it, in that track only.
+ *
+ * Fresh ids on the new measure/beats/notes (ids must be unique per song). Like
+ * deleteMeasure this is a single-track operation and leaves the shared marker/
+ * annotation timeline untouched. Returns false — no history entry — when the
+ * track is missing or the index is out of range.
+ */
+export function duplicateMeasure(song: D<Song>, trackId: Id, index: number): boolean {
+  const track = getTrack(song, trackId);
+  if (!track) return false;
+  if (index < 0 || index >= track.measures.length) return false;
+  const source = track.measures[index]!;
+  const copy = {
+    ...source,
+    id: newMeasureId(),
+    beats: source.beats.map((beat) => ({
+      ...beat,
+      id: newBeatId(),
+      notes: beat.notes.map((note) => ({ ...note, id: newNoteId() })),
+    })),
+  };
+  track.measures.splice(index + 1, 0, copy as never);
   touch(song);
   return true;
 }
