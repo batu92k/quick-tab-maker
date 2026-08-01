@@ -1,0 +1,16 @@
+Instrument samples
+==================
+
+The electric guitar and electric bass samples in this folder are derived from
+the Karoryfer Samples free libraries, as packaged by the tonejs-instruments
+project.
+
+  - Source library:  Karoryfer Samples  (https://www.karoryfer.com/)
+  - Packaging:       tonejs-instruments  (https://github.com/nbrosowsky/tonejs-instruments)
+  - License:         CC0 / public domain upstream; CC-BY 3.0 as packaged.
+
+Attribution is provided here to satisfy CC-BY 3.0. No warranty. If you
+redistribute Quick Tab Maker, keep this file alongside the samples.
+
+Only a sparse subset of pitches is bundled; Tone.Sampler pitch-shifts to fill
+the gaps.

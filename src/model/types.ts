@@ -11,7 +11,7 @@
 import type { Fraction } from './fraction';
 
 /** Bumped whenever the shape changes; see `migrate.ts`. */
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export type Id = string;
 

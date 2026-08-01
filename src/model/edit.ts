@@ -19,6 +19,7 @@ import * as F from './fraction';
 import type { Fraction } from './fraction';
 import { newBeatId, newMeasureId, newNoteId } from './ids';
 import { createBeat, createMeasure, measureCapacity } from './song';
+import { tonesFor } from './tones';
 import {
   isDrumTrack,
   isStringTrack,
@@ -671,6 +672,23 @@ export function setTuning(song: D<Song>, trackId: Id, tuning: readonly string[])
     }
     normalise(asMeasureLike(measure));
   }
+  touch(song);
+  return true;
+}
+
+/**
+ * Changes a string track's tone — its `instrumentId`, e.g. clean → distortion.
+ *
+ * Purely a sound change: notes, tuning and mixer are untouched. Rejected (no
+ * patch) for a drum track, a tone from the wrong instrument family, or a tone
+ * equal to the current one, so an unchanged pick leaves history alone.
+ */
+export function setTone(song: D<Song>, trackId: Id, tone: string): boolean {
+  const track = getStringTrack(song, trackId);
+  if (!track) return false;
+  const valid = tonesFor(track.kind).some((t) => t.id === tone);
+  if (!valid || tone === track.instrumentId) return false;
+  track.instrumentId = tone;
   touch(song);
   return true;
 }

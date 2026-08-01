@@ -473,6 +473,35 @@ describe('tracks', () => {
   });
 });
 
+describe('setTone', () => {
+  it('switches a string track between clean and distortion', () => {
+    const song = apply(guitarSong(), (d) => {
+      expect(E.setTone(d, d.tracks[0]!.id, 'guitar-distortion')).toBe(true);
+    });
+    expect(trackOf(song).instrumentId).toBe('guitar-distortion');
+  });
+
+  it('rejects a tone from the wrong instrument family, or an unknown one', () => {
+    apply(guitarSong(), (d) => {
+      expect(E.setTone(d, d.tracks[0]!.id, 'bass-distortion')).toBe(false);
+      expect(E.setTone(d, d.tracks[0]!.id, 'nonsense')).toBe(false);
+      expect(d.tracks[0]!.instrumentId).toBe('guitar-clean');
+    });
+  });
+
+  it('is a no-op (no patch) when the tone is unchanged', () => {
+    apply(guitarSong(), (d) => {
+      expect(E.setTone(d, d.tracks[0]!.id, 'guitar-clean')).toBe(false);
+    });
+  });
+
+  it('refuses to give a drum track a tone', () => {
+    apply(drumSong(), (d) => {
+      expect(E.setTone(d, d.tracks[0]!.id, 'guitar-clean')).toBe(false);
+    });
+  });
+});
+
 describe('annotations', () => {
   const song4 = (): Song =>
     createSong({ tracks: [createStringTrack('guitar', { measureCount: 4 })] });

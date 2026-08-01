@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../editor/commands', () => ({ setTuning: vi.fn() }));
+vi.mock('../editor/commands', () => ({ setTuning: vi.fn(), setTone: vi.fn() }));
 import * as C from '../editor/commands';
 import { TUNING_PRESETS, TUNINGS } from '../theory/midi';
 import type { StringTrack } from '../model/types';
@@ -67,11 +67,33 @@ describe('InstrumentSettingsDialog', () => {
     const root = createRoot(container);
     act(() => root.render(<InstrumentSettingsDialog track={track} onClose={() => {}} />));
 
-    const options = container.querySelectorAll('option');
-    expect(options.length).toBe(TUNING_PRESETS.guitar.length);
-
+    // Tuning is the first select; scope to it so the Tone select's options
+    // (a second select) do not inflate the count.
     const select = container.querySelector('select') as HTMLSelectElement;
+    expect(select.querySelectorAll('option').length).toBe(TUNING_PRESETS.guitar.length);
     expect(select.value).toBe('standard');
+
+    act(() => root.unmount());
+  });
+
+  it('lists the tones for the instrument and switches on change', () => {
+    const root = createRoot(container);
+    act(() => root.render(<InstrumentSettingsDialog track={track} onClose={() => {}} />));
+
+    // Tone is the last select; Tuning is the first.
+    const selects = container.querySelectorAll('select');
+    const toneSelect = selects[selects.length - 1] as HTMLSelectElement;
+    expect(Array.from(toneSelect.options).map((o) => o.value)).toEqual([
+      'guitar-clean',
+      'guitar-distortion',
+    ]);
+    expect(toneSelect.value).toBe('guitar-clean');
+
+    act(() => {
+      toneSelect.value = 'guitar-distortion';
+      toneSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(vi.mocked(C.setTone)).toHaveBeenCalledWith('trk-1', 'guitar-distortion');
 
     act(() => root.unmount());
   });

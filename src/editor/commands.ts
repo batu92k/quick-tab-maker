@@ -488,6 +488,13 @@ export function setTuning(trackId: string, tuning: readonly string[]): void {
   });
 }
 
+/** Switches a string track's tone (clean, distortion, …). */
+export function setTone(trackId: string, tone: string): void {
+  store().edit('Tone', (draft) => {
+    E.setTone(draft, trackId, tone);
+  });
+}
+
 export function insertMeasureAtCursor(): void {
   const { cursor } = store();
   store().edit('Insert bar', (draft) => E.insertMeasure(draft, cursor?.measureIndex ?? 0));

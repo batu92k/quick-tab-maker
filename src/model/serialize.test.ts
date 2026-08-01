@@ -162,6 +162,19 @@ describe('migration', () => {
   it('stamps new songs with the current version', () => {
     expect(createSong().schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
   });
+
+  it('remaps legacy pluck instrument ids to their clean tone', () => {
+    // A pre-v3 document stored `guitar-pluck`/`bass-pluck`; v3 turned the id
+    // into a tone, so those become the clean tone while the drum id is left be.
+    const v2: Record<string, unknown> = { ...JSON.parse(songToJson(populatedSong())), schemaVersion: 2 };
+    v2.tracks = (v2.tracks as Record<string, unknown>[]).map((t) =>
+      t.kind === 'drums' ? t : { ...t, instrumentId: t.kind === 'bass' ? 'bass-pluck' : 'guitar-pluck' },
+    );
+    const migrated = migrate(v2);
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(migrated.tracks.find((t) => t.kind === 'guitar')!.instrumentId).toBe('guitar-clean');
+    expect(migrated.tracks.find((t) => t.kind === 'drums')!.instrumentId).toBe('drum-synth');
+  });
 });
 
 describe('annotations round-trip', () => {

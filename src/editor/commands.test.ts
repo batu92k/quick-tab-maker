@@ -612,3 +612,14 @@ describe('setTuning', () => {
     expect(notesAt()).toEqual([]);
   });
 });
+
+describe('setTone', () => {
+  it('changes the track tone and records an undo entry', () => {
+    open();
+    const id = guitar().id;
+    const before = store().past.length;
+    C.setTone(id, 'guitar-distortion');
+    expect(guitar().instrumentId).toBe('guitar-distortion');
+    expect(store().past.length).toBe(before + 1);
+  });
+});

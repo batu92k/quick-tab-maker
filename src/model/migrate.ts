@@ -32,6 +32,27 @@ const MIGRATIONS: Readonly<Record<number, Migration>> = {
     schemaVersion: 2,
     annotations: Array.isArray(song.annotations) ? song.annotations : [],
   }),
+
+  // v3 turned `instrumentId` into a per-track *tone*. The old plucked-string ids
+  // become their "clean" equivalents; the drum id is unchanged. The mapping is
+  // pinned literals rather than a shared constant from `tones.ts`, so a later
+  // edit to the tone catalogue can never rewrite how historical songs migrate.
+  2: (song) => {
+    const remap: Record<string, string> = {
+      'guitar-pluck': 'guitar-clean',
+      'bass-pluck': 'bass-clean',
+    };
+    const tracks = Array.isArray(song.tracks)
+      ? song.tracks.map((raw) => {
+          const track = raw as Record<string, unknown>;
+          const id = track.instrumentId;
+          return typeof id === 'string' && remap[id]
+            ? { ...track, instrumentId: remap[id] }
+            : track;
+        })
+      : song.tracks;
+    return { ...song, schemaVersion: 3, tracks };
+  },
 };
 
 export class MigrationError extends Error {

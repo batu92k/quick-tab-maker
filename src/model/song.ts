@@ -73,7 +73,7 @@ export function createStringTrack(
     tuning: options.tuning ?? (isBass ? DEFAULT_BASS_TUNING : DEFAULT_GUITAR_TUNING),
     fretCount: options.fretCount ?? (isBass ? 24 : 24),
     capo: 0,
-    instrumentId: isBass ? 'bass-pluck' : 'guitar-pluck',
+    instrumentId: isBass ? 'bass-clean' : 'guitar-clean',
     mixer: DEFAULT_MIXER,
     measures: emptyMeasures<Note>(options.measureCount ?? DEFAULT_MEASURE_COUNT),
   };

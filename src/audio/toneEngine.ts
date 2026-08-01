@@ -35,37 +35,83 @@ interface Voice {
 }
 
 /**
- * How many notes one string instrument can sound at once.
+ * String-instrument voices are sampled.
  *
- * `PluckSynth` is a single Karplus-Strong string and cannot be wrapped in
- * `PolySynth`, so polyphony is a round-robin pool. Ten covers a six-string
- * chord with room for the previous chord to ring through it, which is the case
- * that sounds wrong when the pool is too small.
+ * A `Tone.Sampler` holds a sparse set of recorded pitches — electric guitar and
+ * electric bass, CC0/CC-BY (see `public/samples/CREDITS.txt`) — and pitch-shifts
+ * to fill the gaps. The sampler is polyphonic on its own, so unlike the old
+ * plucked string there is no round-robin pool to manage. Its buffers load over
+ * the network on construction; `load()` awaits `Tone.loaded()` so the first
+ * press of play is never silent.
  */
-const POLYPHONY = 10;
 
-function pluckVoice(Tone: ToneModule, bass: boolean): Voice {
-  const output = new Tone.Gain(1);
-  const voices = Array.from({ length: POLYPHONY }, () =>
-    new Tone.PluckSynth({
-      attackNoise: bass ? 0.6 : 1,
-      // A bass string is longer and duller: less damping, more resonance.
-      dampening: bass ? 1600 : 4000,
-      resonance: bass ? 0.97 : 0.92,
-      release: 1,
-    }).connect(output),
-  );
+/** Recorded pitches per instrument, mapped to the files in `public/samples`. */
+const GUITAR_SAMPLES: Record<string, string> = {
+  E2: 'E2.mp3',
+  A2: 'A2.mp3',
+  'D#3': 'Ds3.mp3',
+  A3: 'A3.mp3',
+  'D#4': 'Ds4.mp3',
+  A4: 'A4.mp3',
+  'D#5': 'Ds5.mp3',
+  A5: 'A5.mp3',
+};
 
-  let next = 0;
+const BASS_SAMPLES: Record<string, string> = {
+  E1: 'E1.mp3',
+  'A#1': 'As1.mp3',
+  E2: 'E2.mp3',
+  'A#2': 'As2.mp3',
+  E3: 'E3.mp3',
+  'A#3': 'As3.mp3',
+  E4: 'E4.mp3',
+};
+
+function makeSampler(Tone: ToneModule, bass: boolean): InstanceType<ToneModule['Sampler']> {
+  return new Tone.Sampler({
+    urls: bass ? BASS_SAMPLES : GUITAR_SAMPLES,
+    baseUrl: `${import.meta.env.BASE_URL}samples/${bass ? 'bass-electric' : 'guitar-electric'}/`,
+    release: 0.6,
+  });
+}
+
+/**
+ * A sampled string voice, clean or distorted.
+ *
+ * The clean tone runs the sampler straight to the output. The distortion tone
+ * is the *same* recorded sound driven into a waveshaper (`Tone.Distortion`) and
+ * then rolled off with a low-pass, which is what turns the fizz back into an
+ * overdriven-amp tone rather than white noise. One shared distortion node per
+ * voice, so a chord intermodulates the way a real amp does. The output gain is
+ * pulled back on the distorted tone as makeup, so switching Clean↔Distortion is
+ * not also a jump in volume. The drive/amount/cutoff values are ear-tuned
+ * starting points — safe to nudge.
+ */
+function sampledVoice(Tone: ToneModule, bass: boolean, distorted: boolean): Voice {
+  const output = new Tone.Gain(distorted ? (bass ? 0.6 : 0.5) : 1);
+  const sampler = makeSampler(Tone, bass);
+  const extra: { dispose(): void }[] = [];
+
+  if (distorted) {
+    const tone = new Tone.Filter({ type: 'lowpass', frequency: bass ? 2600 : 3200, Q: 0.6 }).connect(output);
+    const shaper = new Tone.Distortion({ distortion: bass ? 0.4 : 0.75, oversample: '2x' }).connect(tone);
+    const drive = new Tone.Gain(bass ? 1.5 : 2.4).connect(shaper);
+    sampler.connect(drive);
+    extra.push(tone, shaper, drive);
+  } else {
+    sampler.connect(output);
+  }
+
   return {
     output,
     trigger(midi, duration, time, velocity) {
-      const voice = voices[next]!;
-      next = (next + 1) % voices.length;
-      voice.triggerAttackRelease(midiToFrequency(midi), duration, time, normalise(velocity));
+      // Feed the sampler a frequency, so we never depend on Tone's MIDI-name
+      // parsing. Silent until its buffers load — see `Tone.loaded()` in `load`.
+      sampler.triggerAttackRelease(midiToFrequency(midi), duration, time, normalise(velocity));
     },
     dispose() {
-      for (const voice of voices) voice.dispose();
+      sampler.dispose();
+      for (const node of extra) node.dispose();
       output.dispose();
     },
   };
@@ -81,25 +127,52 @@ const TOM_PITCH: Partial<Record<DrumPiece, number>> = {
 function drumVoice(Tone: ToneModule): Voice {
   const output = new Tone.Gain(1);
 
+  // Shared kit bus. Light compression glues the hits together, a gentle EQ tilt
+  // adds low-end weight and top-end air, and a touch of algorithmic room lifts
+  // the kit off the dry synth floor it used to sit on. Freeverb is synchronous,
+  // so there is no impulse response to await before the first hit. Every voice
+  // below routes into `bus` rather than straight to the output.
+  const room = new Tone.Freeverb({ roomSize: 0.42, dampening: 3200 });
+  room.wet.value = 0.11;
+  room.connect(output);
+  const eq = new Tone.EQ3({ low: 2, mid: -1.5, high: 2.5, lowFrequency: 180, highFrequency: 3200 }).connect(room);
+  const bus = new Tone.Compressor({ threshold: -20, ratio: 3, attack: 0.003, release: 0.12 }).connect(eq);
+
   const kick = new Tone.MembraneSynth({
     pitchDecay: 0.045,
     octaves: 6,
     envelope: { attack: 0.001, decay: 0.42, sustain: 0.01, release: 1.2 },
-  }).connect(output);
+  }).connect(bus);
+
+  // A high-passed noise tick layered on the kick — the beater attack that a pure
+  // sine membrane lacks, which is what makes a kick cut through on small speakers.
+  const kickClickFilter = new Tone.Filter({ type: 'highpass', frequency: 1400 }).connect(bus);
+  const kickClick = new Tone.NoiseSynth({
+    noise: { type: 'white' },
+    envelope: { attack: 0.001, decay: 0.02, sustain: 0 },
+  }).connect(kickClickFilter);
 
   const tom = new Tone.MembraneSynth({
     pitchDecay: 0.01,
     octaves: 3,
     envelope: { attack: 0.001, decay: 0.28, sustain: 0.01, release: 0.4 },
-  }).connect(output);
+  }).connect(bus);
 
   // Snare is filtered noise. A band-pass around 2kHz is what gives it the
   // crack; unfiltered white noise reads as a hi-hat.
-  const snareBody = new Tone.Filter({ type: 'bandpass', frequency: 1900, Q: 1.1 }).connect(output);
+  const snareFilter = new Tone.Filter({ type: 'bandpass', frequency: 1900, Q: 1.1 }).connect(bus);
   const snare = new Tone.NoiseSynth({
     noise: { type: 'white' },
     envelope: { attack: 0.001, decay: 0.17, sustain: 0 },
-  }).connect(snareBody);
+  }).connect(snareFilter);
+
+  // A short pitched body under the crack, so the snare reads as a struck drum
+  // rather than a burst of noise.
+  const snareTone = new Tone.MembraneSynth({
+    pitchDecay: 0.03,
+    octaves: 4,
+    envelope: { attack: 0.001, decay: 0.12, sustain: 0, release: 0.1 },
+  }).connect(bus);
 
   // Hats and cymbals are each one monophonic metal voice, so a second hit cuts
   // the first off. On hi-hats that is correct — a closed hat really does choke
@@ -111,7 +184,7 @@ function drumVoice(Tone: ToneModule): Voice {
     resonance: 6000,
     octaves: 1.5,
     envelope: { attack: 0.001, decay: 0.06, release: 0.02 },
-  }).connect(output);
+  }).connect(bus);
 
   const cymbal = new Tone.MetalSynth({
     harmonicity: 5.1,
@@ -119,7 +192,7 @@ function drumVoice(Tone: ToneModule): Voice {
     resonance: 3500,
     octaves: 1.5,
     envelope: { attack: 0.001, decay: 1.4, release: 1.2 },
-  }).connect(output);
+  }).connect(bus);
 
   return {
     output,
@@ -131,9 +204,11 @@ function drumVoice(Tone: ToneModule): Voice {
       switch (piece) {
         case 'kick':
           kick.triggerAttackRelease(55, 0.28, time, gain);
+          kickClick.triggerAttackRelease(0.02, time, gain * 0.5);
           return;
         case 'snare':
           snare.triggerAttackRelease(0.18, time, gain);
+          snareTone.triggerAttackRelease(180, 0.1, time, gain * 0.6);
           return;
         case 'sideStick':
           snare.triggerAttackRelease(0.04, time, gain * 0.7);
@@ -161,14 +236,32 @@ function drumVoice(Tone: ToneModule): Voice {
       }
     },
     dispose() {
-      for (const node of [kick, tom, snare, snareBody, hat, cymbal, output]) node.dispose();
+      for (const node of [
+        kick,
+        kickClick,
+        kickClickFilter,
+        tom,
+        snare,
+        snareFilter,
+        snareTone,
+        hat,
+        cymbal,
+        bus,
+        eq,
+        room,
+        output,
+      ]) {
+        node.dispose();
+      }
     },
   };
 }
 
 function createVoice(Tone: ToneModule, instrumentId: string): Voice {
   if (instrumentId === 'drum-synth') return drumVoice(Tone);
-  return pluckVoice(Tone, instrumentId === 'bass-pluck');
+  // Tone lives in the id as `<family>-<tone>` (see `model/tones.ts`): the family
+  // picks the sample set, the suffix picks clean vs. distorted.
+  return sampledVoice(Tone, instrumentId.startsWith('bass'), instrumentId.endsWith('distortion'));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -252,6 +345,16 @@ class ToneEngine implements AudioEngine {
       this.setTrackMix(track.id, track.mixer);
     }
 
+    // Sampled voices fetch their buffers on construction; wait for them so the
+    // first press of play is not silent (resolves at once once they are cached).
+    // A buffer that fails — offline, say — must not block the take: fall through
+    // and let that one voice stay silent rather than refusing to play at all.
+    try {
+      await this.Tone.loaded();
+    } catch {
+      // proceed with whatever loaded
+    }
+
     const notes = new this.Tone.Part<(typeof plan.events)[number]>((time, event) => {
       this.channels.get(event.trackId)?.voice.trigger(
         event.midi,
@@ -327,10 +430,22 @@ class ToneEngine implements AudioEngine {
       if (this.auditionChannel) this.disposeChannel(this.auditionChannel);
       this.auditionChannel = this.buildChannel(instrumentId);
     }
+    const channel = this.auditionChannel;
     const duration = kind === 'percussive' ? 0.3 : 0.9;
-    // `now()` rather than the transport clock: an audition is a response to a
-    // click and must sound whether or not the transport is running.
-    this.auditionChannel.voice.trigger(midi, duration, this.Tone.now(), 100);
+    // Trigger through `Tone.loaded()` so the first preview after switching to a
+    // sampled instrument is not silent — its buffers may still be loading. When
+    // they are already loaded (or the voice is synthesised) this resolves on the
+    // next microtask, which is inaudible. `now()` rather than the transport
+    // clock: an audition must sound whether or not the transport is running.
+    void this.Tone.loaded()
+      .then(() => {
+        // A newer audition may have disposed or replaced this channel while its
+        // buffers loaded; only fire if it is still the current one.
+        if (this.auditionChannel === channel) {
+          channel.voice.trigger(midi, duration, this.Tone.now(), 100);
+        }
+      })
+      .catch(() => {});
   }
 
   dispose(): void {

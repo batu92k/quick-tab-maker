@@ -12,6 +12,7 @@ import { useState } from 'react';
 import * as C from '../editor/commands';
 import { TUNING_PRESETS, presetKeyForTuning, type TuningPreset } from '../theory/midi';
 import { notesOnStringsBeyond } from '../model/song';
+import { tonesFor } from '../model/tones';
 import type { StringTrack } from '../model/types';
 import { useDialogA11y } from './useDialogA11y';
 import './instrument-settings.css';
@@ -103,6 +104,21 @@ export function InstrumentSettingsDialog({ track, onClose }: InstrumentSettingsD
             </div>
           </div>
         )}
+
+        <label className="qtm-field">
+          <span className="qtm-field-label">Tone</span>
+          <select
+            className="qtm-select"
+            value={track.instrumentId}
+            onChange={(e) => C.setTone(track.id, e.target.value)}
+          >
+            {tonesFor(track.kind).map((tone) => (
+              <option key={tone.id} value={tone.id}>
+                {tone.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <footer className="qtm-export-footer">
           <button type="button" className="qtm-button" onClick={onClose}>
